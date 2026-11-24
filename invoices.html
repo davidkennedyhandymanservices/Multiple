@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="theme-color" content="#0f5c5c">
-<title>Handyman Manager · Invoices</title>
+<title>Handyman Manager - Invoices</title>
 <style>
 :root{--ink:#14232f;--bg:#e9edef;--card:#fff;--ac:#0f5c5c;--tape:#f2c230;--mut:#5b6b76;--bad:#b3261e;--ok:#1b7a43;--ln:#cfd7dc}
 *{box-sizing:border-box}
@@ -33,13 +33,8 @@ label{font-weight:650;font-size:14px;display:block}
 .row:last-child{border:0;padding-bottom:0}
 .tag{background:var(--tape);color:#111;border-radius:6px;padding:3px 8px;font-size:12px;font-weight:700;white-space:nowrap}
 .tag.ok{background:#dcfce7;color:#166534}
-.tag.bad{background:#fee2e2;color:#991b1b}
 .doc-card{border:1px solid var(--ln);border-radius:10px;padding:11px;margin:10px 0;background:#fafbfc}
 .doc-actions{display:flex;gap:6px;flex-wrap:wrap;margin-top:8px}
-.grid-2{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px;margin-bottom:12px}
-.stat-box{background:var(--card);border:1px solid var(--ln);border-radius:12px;padding:12px}
-.stat-box .n{font-size:22px;font-weight:800;color:var(--ink)}
-.stat-box .lbl{font-size:12px;color:var(--mut);font-weight:600;margin-top:2px}
 nav{position:fixed;bottom:0;left:0;right:0;display:flex;background:white;border-top:1px solid var(--ln);padding-bottom:env(safe-area-inset-bottom);z-index:6}
 nav button{flex:1;background:none;color:var(--mut);border-radius:0;margin:0;min-height:58px;font-size:12px;padding:4px}
 nav button.on{color:var(--ac);box-shadow:inset 0 3px var(--tape);font-weight:700}
@@ -68,36 +63,26 @@ function parseInvoiceLines(text) {
     });
 }
 
-function totalInvoiceLines(items) {
+function sumInvoiceLines(items) {
   return items.reduce((sum, item) => sum + (Number(item.amount) || 0), 0);
 }
 
-function invoiceNumberPrefix() {
-  const words = String(brand.name || 'INV')
-    .replace(/[^a-zA-Z0-9\s]/g, ' ')
-    .trim()
-    .split(/\s+/)
-    .filter(Boolean);
-  const letters = words.map((w) => w[0]).join('').toUpperCase().slice(0, 4);
-  return letters || 'INV';
-}
-
-async function getTaskAndQuoteForInvoice(taskId) {
+async function getTaskQuoteData(taskId) {
   const task = await get('jobs', taskId);
   if (!task) return null;
   const customer = task.customerId ? await get('customers', task.customerId) : null;
   const quotes = (await all('quotes'))
     .filter((q) => q.jobId === taskId)
     .sort((a, b) => (b.created || 0) - (a.created || 0));
-  return { task, customer, quote: quotes[0] || null };
+  const quote = quotes[0] || null;
+  return { task, customer, quote };
 }
 
 async function renderInvoicesPage() {
-  const [tasks, quotes, invoices, payments] = await Promise.all([
+  const [tasks, quotes, invoices] = await Promise.all([
     all('jobs').then((list) => list.sort((a, b) => (b.created || 0) - (a.created || 0))),
     all('quotes'),
-    all('invoices').then((list) => list.sort((a, b) => (b.created || 0) - (a.created || 0))),
-    all('payments')
+    all('invoices').then((list) => list.sort((a, b) => (b.created || 0) - (a.created || 0)))
   ]);
 
   const quoteByTask = new Map();
@@ -105,107 +90,89 @@ async function renderInvoicesPage() {
     if (!quoteByTask.has(q.jobId)) quoteByTask.set(q.jobId, q);
   }
 
-  const totalBilled = invoices.reduce((sum, inv) => sum + (Number(inv.total) || 0), 0);
-  const totalPaid = invoices.reduce((sum, inv) => {
-    const invPayments = payments
-      .filter((p) => p.invoiceId === inv.id)
-      .reduce((ps, p) => ps + (Number(p.amount) || 0), 0);
-    if (invPayments > 0) return sum + invPayments;
-    if (inv.status === 'Paid') return sum + (Number(inv.total) || 0);
-    return sum;
-  }, 0);
-  const totalOutstanding = Math.max(0, totalBilled - totalPaid);
+  const invByTask = new Map();
+  for (const inv of invoices) {
+    if (!invByTask.has(inv.jobId)) invByTask.set(inv.jobId, inv);
+  }
 
   $('#view').innerHTML = `
     <div class="c">
-      <h2>Invoices &amp; Payments</h2>
-      <p class="m">Create invoices directly from a task and its quotation, record payments, and generate branded PDF invoices.</p>
-      <button type="button" class="w" onclick="openInvoiceForm()">+ Create Invoice from Task &amp; Quote</button>
-    </div>
-
-    <div class="grid-2">
-      <div class="stat-box">
-        <div class="n">${GBP(totalBilled)}</div>
-        <div class="lbl">Total Billed (${invoices.length})</div>
-      </div>
-      <div class="stat-box">
-        <div class="n">${GBP(totalOutstanding)}</div>
-        <div class="lbl">Balance Outstanding</div>
-      </div>
+      <h2>Invoices &amp; Billing</h2>
+      <p class="m">Generate structured A4 PDF invoices using the shared task reference sequence (e.g. <code>${esc(formatDocRef('inv', '001'))}</code>) and track payment status.</p>
+      <button type="button" class="w" onclick="openInvoiceEditor()">+ Create Invoice from Task</button>
     </div>
 
     <div class="c">
-      <h3>Issued Invoices (${invoices.length})</h3>
+      <h3>Issued &amp; Draft Invoices (${invoices.length})</h3>
       ${
         invoices.length
           ? invoices
               .map((inv) => {
-                const paidForInv = payments
-                  .filter((p) => p.invoiceId === inv.id)
-                  .reduce((s, p) => s + (Number(p.amount) || 0), 0);
-                const effectivePaid = paidForInv > 0 ? paidForInv : inv.status === 'Paid' ? Number(inv.total) || 0 : 0;
-                const remaining = Math.max(0, (Number(inv.total) || 0) - effectivePaid);
-                const badgeClass =
-                  inv.status === 'Paid' || remaining === 0
-                    ? 'ok'
-                    : inv.status === 'Overdue'
-                    ? 'bad'
-                    : '';
+                const isPaid = inv.paymentStatus === 'Paid';
+                const invRef = formatDocRef('inv', inv.documentNumber || inv.jobRef);
+                const quoRef = formatDocRef('quo', inv.quoteNumber || inv.documentNumber || inv.jobRef);
                 return `
                   <div class="doc-card">
                     <div style="display:flex;justify-content:space-between;align-items:center;gap:8px">
-                      <b>${esc(inv.documentNumber || 'Invoice')} · ${esc(inv.customerName || '')}</b>
-                      <span class="tag ${badgeClass}">${esc(inv.status || 'Not paid')}</span>
+                      <b>${esc(invRef)} - ${esc(inv.customerName || 'Client')}</b>
+                      <span class="tag ${isPaid ? 'ok' : ''}">${esc(inv.paymentStatus || 'Unpaid')}</span>
                     </div>
                     <div class="m" style="margin-top:4px">
-                      Task: <b>${esc(inv.jobRef || 'N/A')}</b>
-                      ${inv.quoteNumber ? ` · Quote: <b>${esc(inv.quoteNumber)}</b>` : ''}
-                      · Total: <b>${GBP(inv.total)}</b>
+                      Ref: <b>${esc(invRef)}</b> - Quote: <b>${esc(quoRef)}</b> - Total: <b>${GBP(inv.total)}</b>
                     </div>
                     <div class="small">
-                      Paid: ${GBP(effectivePaid)} · Balance due: <b>${GBP(remaining)}</b>
-                      ${inv.dueDate ? ` · Due: ${dateFmt(inv.dueDate)}` : ''}
+                      Issued: ${dateFmt(inv.createdDate || '')}
+                      ${inv.dueDate ? ` - Due: ${dateFmt(inv.dueDate)}` : ''}
+                      ${inv.paymentMethod ? ` - Method: ${esc(inv.paymentMethod)}` : ''}
                     </div>
                     <div class="doc-actions">
-                      <button type="button" onclick="openInvoicePdf('${esc(inv.id)}')">View / Save PDF</button>
-                      <button type="button" class="secondary" onclick="shareInvoicePdf('${esc(inv.id)}')">Share</button>
-                      <button type="button" class="secondary" onclick="openPaymentModal('${esc(inv.id)}')">Record Payment</button>
-                      <button type="button" class="secondary" onclick="openInvoiceForm('${esc(inv.jobId || '')}', '${esc(inv.id)}')">Edit</button>
+                      <button type="button" onclick="openInvoicePdfById('${esc(inv.id)}')">View / Save PDF</button>
+                      <button type="button" class="secondary" onclick="shareInvoicePdfById('${esc(inv.id)}')">Share</button>
+                      <button type="button" class="secondary" onclick="openInvoiceEditor('${esc(inv.jobId || '')}', '${esc(inv.id)}')">Edit</button>
+                      ${
+                        !isPaid
+                          ? `<button type="button" class="secondary" onclick="markInvoicePaid('${esc(inv.id)}')">Mark Paid</button>`
+                          : ''
+                      }
                       <button type="button" class="danger" onclick="confirmDeleteInvoice('${esc(inv.id)}')">Delete</button>
                     </div>
                   </div>`;
               })
               .join('')
-          : '<p class="m">No invoices created yet. Select a task below or tap "+ Create Invoice from Task &amp; Quote".</p>'
+          : '<p class="m">No invoices created yet. Select a task below to raise an invoice.</p>'
       }
     </div>
 
     <div class="c">
-      <h3>Tasks &amp; Quotes Ready to Invoice (${tasks.length})</h3>
+      <h3>Tasks Ready for Invoicing (${tasks.length})</h3>
       ${
         tasks.length
           ? tasks
               .map((t) => {
                 const q = quoteByTask.get(t.id);
-                const amt = q ? Number(q.total) || 0 : Number(t.amount) || 0;
+                const existingInv = invByTask.get(t.id);
+                const baseRef = q?.documentNumber || t.ref;
+                const invRef = formatDocRef('inv', baseRef);
+                const quoRef = formatDocRef('quo', baseRef);
+                const amt = existingInv ? existingInv.total : q ? q.total : t.amount;
                 return `
                   <div class="row">
                     <div>
-                      <b>${esc(t.ref)} · ${esc(t.customerName)}</b>
-                      <div class="m">${esc(t.task || t.description)}</div>
-                      <div class="small">${q ? `Quote ${esc(q.documentNumber)} · ${GBP(amt)}` : `Task Amount: ${GBP(amt)}`}</div>
+                      <b>${esc(invRef)} - ${esc(t.customerName)}</b>
+                      <div class="m">${esc(t.task || 'Task')} - ${esc(t.description || '')}</div>
+                      <div class="small">Quote: ${esc(quoRef)} - ${GBP(amt)}</div>
                     </div>
-                    <button type="button" onclick="openInvoiceForm('${esc(t.id)}')">Invoice</button>
+                    <button type="button" onclick="openInvoiceEditor('${esc(t.id)}', '${esc(existingInv?.id || '')}')">${existingInv ? 'Edit Invoice' : 'Create Invoice'}</button>
                   </div>`;
               })
               .join('')
-          : '<p class="m">No tasks found yet.</p>'
+          : '<p class="m">No tasks found. Create a task &amp; quotation first.</p>'
       }
     </div>
   `;
 }
 
-async function openInvoiceForm(preselectedTaskId = '', existingInvoiceId = '') {
+async function openInvoiceEditor(preselectedTaskId = '', existingInvoiceId = '') {
   const existing = existingInvoiceId ? await get('invoices', existingInvoiceId) : null;
   const tasks = (await all('jobs')).sort((a, b) => (b.created || 0) - (a.created || 0));
   if (!tasks.length && !existing) {
@@ -213,380 +180,463 @@ async function openInvoiceForm(preselectedTaskId = '', existingInvoiceId = '') {
     return navigateTo('tasks.html', { action: 'new' });
   }
 
-  const targetTaskId = existing?.jobId || preselectedTaskId || tasks[0]?.id || '';
-  const ctx = await getTaskAndQuoteForInvoice(targetTaskId);
+  const chosenTaskId = existing?.jobId || preselectedTaskId || tasks[0]?.id || '';
+  const ctx = await getTaskQuoteData(chosenTaskId);
   const task = ctx?.task || {};
   const quote = ctx?.quote || null;
 
-  const defaultItemsText = existing?.itemsText
-    ? existing.itemsText
+  const baseRef = quote?.documentNumber || task.ref || existing?.documentNumber;
+  const invRef = formatDocRef('inv', baseRef);
+  const quoRef = formatDocRef('quo', baseRef);
+  const tskRef = formatDocRef('tsk', baseRef);
+
+  const linesText = existing?.items?.length
+    ? existing.items.map((it) => `${it.description} | ${Number(it.amount) || 0}`).join('\n')
     : quote?.items?.length
-    ? quote.items.map((it) => `${it.description} | ${Number(it.amount) || 0}`).join('\n')
-    : `${task.task || task.description || 'Agreed work'} | ${Number(task.amount) || 0}`;
+      ? quote.items.map((it) => `${it.description} | ${Number(it.amount) || 0}`).join('\n')
+      : `${task.description || task.task || 'Agreed task'} | ${Number(quote ? quote.total : task.amount) || 0}`;
 
   modal(`
-    <h2>${existing ? 'Edit' : 'Create'} Invoice</h2>
-    <p class="m">Task Ref: <b>${esc(task.ref || existing?.jobRef || 'N/A')}</b>${quote ? ` · Linked Quote: <b>${esc(quote.documentNumber)}</b>` : ''}</p>
-    <form id="invoiceForm" onsubmit="event.preventDefault();saveInvoice('${esc(existing?.id || '')}')">
+    <h2>${existing ? 'Edit Invoice' : 'Create Invoice'} (${esc(invRef)})</h2>
+    <p class="m">Task: <b>${esc(tskRef)}</b> - Quote: <b>${esc(quoRef)}</b></p>
+
+    <form id="invoiceForm" onsubmit="event.preventDefault();saveInvoice()">
       <label>Select Task</label>
-      <select name="taskId" id="invTaskSelect" onchange="switchInvoiceTask(this.value, '${esc(existing?.id || '')}')">
+      <select name="taskId" id="invoiceTaskSelect" onchange="switchInvoiceTask(this.value, '${esc(existing?.id || '')}')">
         ${tasks
           .map(
             (t) =>
-              `<option value="${esc(t.id)}" ${t.id === (existing?.jobId || task.id) ? 'selected' : ''}>${esc(t.ref)} · ${esc(t.customerName)}</option>`
+              `<option value="${esc(t.id)}" ${t.id === task.id ? 'selected' : ''}>${esc(formatDocRef('tsk', t.ref))} - ${esc(t.customerName)}</option>`
           )
           .join('')}
       </select>
 
-      <label>Invoice Line Items (one per line: description | amount)</label>
-      <textarea name="items" id="invItemsText" required>${esc(defaultItemsText)}</textarea>
+      <label>Invoice Reference</label>
+      <input name="docNumber" value="${esc(invRef)}" readonly>
+
+      <label>Line Items (one per line: description | amount)</label>
+      <textarea name="items" required>${esc(linesText)}</textarea>
 
       <label>Invoice Date</label>
-      <input name="issueDate" type="date" value="${esc(existing?.issueDate || today())}" required>
+      <input name="createdDate" type="date" value="${esc(existing?.createdDate || today())}" required>
 
-      <label>Payment Due Date</label>
+      <label>Payment Due Date (Optional)</label>
       <input name="dueDate" type="date" value="${esc(existing?.dueDate || '')}">
 
-      <label>Invoice Status</label>
-      <select name="status">
-        ${['Not paid', 'Part-paid', 'Paid', 'Overdue']
-          .map((st) => `<option ${(existing?.status || 'Not paid') === st ? 'selected' : ''}>${st}</option>`)
+      <label>Payment Status</label>
+      <select name="paymentStatus">
+        ${['Unpaid', 'Partially Paid', 'Paid']
+          .map((st) => `<option ${(existing?.paymentStatus || 'Unpaid') === st ? 'selected' : ''}>${st}</option>`)
           .join('')}
       </select>
 
-      <label>Payment Notes / Reference</label>
-      <textarea name="notes">${esc(existing?.notes ?? quote?.notes ?? '')}</textarea>
+      <label>Payment Method</label>
+      <select name="paymentMethod">
+        ${['Bank Transfer', 'Cash', 'Card', 'Cheque', 'Pending']
+          .map((pm) => `<option ${(existing?.paymentMethod || 'Bank Transfer') === pm ? 'selected' : ''}>${pm}</option>`)
+          .join('')}
+      </select>
 
-      <label>Bank Transfer Details (from Branding)</label>
-      <textarea name="bankDetails" placeholder="Sort code, account number, account name...">${esc(existing?.bankDetails ?? brand.bankDetails ?? '')}</textarea>
+      <label>Bank / Payment Instructions</label>
+      <textarea name="bankDetails" placeholder="Sort code, account number, payment reference...">${esc(existing?.bankDetails ?? brand.bankDetails ?? '')}</textarea>
 
-      <button type="submit" class="w">Save Invoice &amp; Generate Branded PDF</button>
+      <label>Invoice Notes &amp; Terms</label>
+      <textarea name="notes">${esc(existing?.notes ?? quote?.notes ?? task.description ?? '')}</textarea>
+
+      <button type="submit" class="w">Save Invoice &amp; Generate PDF</button>
     </form>
   `);
 }
 
 async function switchInvoiceTask(newTaskId, existingInvoiceId = '') {
-  const existing = existingInvoiceId ? await get('invoices', existingInvoiceId) : null;
-  const ctx = await getTaskAndQuoteForInvoice(newTaskId);
-  if (!ctx?.task) return;
-  const task = ctx.task;
-  const quote = ctx.quote;
-  const linesText = quote?.items?.length
-    ? quote.items.map((it) => `${it.description} | ${Number(it.amount) || 0}`).join('\n')
-    : `${task.task || task.description || 'Agreed work'} | ${Number(task.amount) || 0}`;
-
-  const itemsEl = $('#invItemsText');
-  if (itemsEl && !existing) {
-    itemsEl.value = linesText;
+  const form = $('#invoiceForm');
+  const f = form ? formData(form) : {};
+  await openInvoiceEditor(newTaskId, existingInvoiceId);
+  if (f.createdDate && $('#invoiceForm [name="createdDate"]')) {
+    $('#invoiceForm [name="createdDate"]').value = f.createdDate;
   }
-  toast(`Loaded task ${task.ref}${quote ? ` & quote ${quote.documentNumber}` : ''}`);
+  if (f.dueDate && $('#invoiceForm [name="dueDate"]')) {
+    $('#invoiceForm [name="dueDate"]').value = f.dueDate;
+  }
+  if (f.bankDetails && $('#invoiceForm [name="bankDetails"]')) {
+    $('#invoiceForm [name="bankDetails"]').value = f.bankDetails;
+  }
 }
 
-async function saveInvoice(existingInvoiceId = '') {
-  const f = formData('invoiceForm');
+async function saveInvoice() {
+  const form = $('#invoiceForm');
+  if (!form || !form.reportValidity()) return;
+  const f = formData(form);
+
   const items = parseInvoiceLines(f.items);
   if (!items.length) return toast('Add at least one invoice line item');
 
-  const taskId = f.taskId || $('#invTaskSelect')?.value || '';
-  const ctx = await getTaskAndQuoteForInvoice(taskId);
-  if (!ctx?.task) return toast('Task not found');
+  const ctx = await getTaskQuoteData(f.taskId);
+  if (!ctx?.task) return toast('Please choose a valid task');
 
   const task = ctx.task;
-  const customer = ctx.customer;
   const quote = ctx.quote;
-  const old = existingInvoiceId ? await get('invoices', existingInvoiceId) : null;
+  const old = (await all('invoices')).find((inv) => inv.jobId === task.id) || null;
+  const baseRef = quote?.documentNumber || task.ref || old?.documentNumber;
+  const invRef = formatDocRef('inv', baseRef);
+  const quoRef = formatDocRef('quo', baseRef);
+  const tskRef = formatDocRef('tsk', baseRef);
+  const total = sumInvoiceLines(items);
+  const payStatus = f.paymentStatus || 'Unpaid';
 
-  const counterKey = 'invoices';
-  let counter = await get('counters', counterKey);
-  if (!old && !counter) counter = { id: counterKey, value: 0 };
-  if (!old) {
-    counter.value++;
-    await put('counters', counter);
-  }
-
-  const total = totalInvoiceLines(items);
-  const docNumber =
-    old?.documentNumber ||
-    `${invoiceNumberPrefix()}-INV-${new Date().getFullYear()}-${String(counter?.value || 1).padStart(4, '0')}`;
-
-  const record = {
+  const invoiceRecord = {
     ...(old || {}),
     id: old?.id || uid(),
     jobId: task.id,
-    jobRef: task.ref,
-    quoteId: quote?.id || old?.quoteId || '',
-    quoteNumber: quote?.documentNumber || old?.quoteNumber || '',
-    documentNumber: docNumber,
+    jobRef: tskRef,
+    documentNumber: invRef,
+    quoteId: quote?.id || '',
+    quoteNumber: quoRef,
     customerId: task.customerId || '',
-    customerName: task.customerName,
-    customerAddress: task.customerAddress || customer?.address || '',
-    customerPhone: customer?.phone || '',
-    customerEmail: customer?.email || '',
-    itemsText: f.items,
+    customerName: task.customerName || '',
+    customerAddress: task.customerAddress || ctx.customer?.address || '',
+    customerPhone: ctx.customer?.phone || '',
+    customerEmail: ctx.customer?.email || '',
+    taskCategory: task.task || 'Task',
     items,
     total,
-    issueDate: f.issueDate || today(),
+    createdDate: f.createdDate || today(),
     dueDate: f.dueDate || '',
-    status: f.status || 'Not paid',
-    notes: f.notes || '',
+    paymentStatus: payStatus,
+    paymentMethod: f.paymentMethod || 'Bank Transfer',
     bankDetails: (f.bankDetails || '').trim(),
+    notes: (f.notes || '').trim(),
     created: old?.created || Date.now(),
     updatedAt: Date.now()
   };
 
-  try {
-    const pdfBlob = await makeInvoicePdf(record);
-    const filename = `${record.documentNumber}_Invoice.pdf`.replace(/[^a-zA-Z0-9._-]/g, '_');
-    record.filename = filename;
-    record.pdfData = await fileData(new File([pdfBlob], filename, { type: 'application/pdf' }));
+  const pdfBlob = await makeInvoicePdf(invoiceRecord);
+  const filename = `${invRef}.pdf`;
+  invoiceRecord.filename = filename;
+  invoiceRecord.pdfData = await fileData(new File([pdfBlob], filename, { type: 'application/pdf' }));
 
-    if (isSupabaseConfigured()) {
-      try {
-        record.pdfStorage = await uploadPdfToSupabase(
-          pdfBlob,
-          `invoices/${record.jobRef || 'general'}/${filename}`
-        );
-      } catch (upErr) {
-        console.warn('Invoice PDF upload skipped:', upErr.message);
-      }
+  if (isSupabaseConfigured()) {
+    try {
+      invoiceRecord.pdfStorage = await uploadPdfToSupabase(
+        pdfBlob,
+        `invoices/${extractSeqDigits(invRef)}/${filename}`
+      );
+    } catch (upErr) {
+      console.warn('Invoice PDF upload skipped:', upErr.message);
     }
-
-    await put('invoices', record);
-
-    task.amount = total;
-    task.paymentStatus = record.status;
-    if (record.status === 'Paid' && task.status !== 'Completed') {
-      task.status = 'Completed';
-    }
-    task.updatedAt = Date.now();
-    await put('jobs', task);
-
-    closeModal();
-    toast(old ? 'Invoice updated & PDF regenerated' : 'Invoice saved & PDF generated');
-    await renderInvoicesPage();
-  } catch (e) {
-    console.error(e);
-    toast('Could not generate invoice PDF: ' + e.message);
   }
+
+  await put('invoices', invoiceRecord);
+
+  task.paymentStatus = payStatus;
+  if (payStatus === 'Paid') {
+    task.status = 'Completed';
+  }
+  task.updatedAt = Date.now();
+  await put('jobs', task);
+
+  closeModal();
+  toast(`Saved ${invRef} & generated invoice PDF`);
+  await renderInvoicesPage();
 }
 
-async function openPaymentModal(invoiceId) {
-  const inv = await get('invoices', invoiceId);
-  if (!inv) return toast('Invoice not found');
-
-  const invPayments = (await all('payments')).filter((p) => p.invoiceId === invoiceId);
-  const paidSoFar = invPayments.reduce((s, p) => s + (Number(p.amount) || 0), 0);
-  const balanceDue = Math.max(0, (Number(inv.total) || 0) - paidSoFar);
-
-  modal(`
-    <h2>Record Payment</h2>
-    <p class="m"><b>${esc(inv.documentNumber)}</b> · ${esc(inv.customerName)}<br>Total: <b>${GBP(inv.total)}</b> · Paid: <b>${GBP(paidSoFar)}</b> · Balance: <b>${GBP(balanceDue)}</b></p>
-
-    <form id="paymentForm" onsubmit="event.preventDefault();savePayment('${esc(invoiceId)}')">
-      <label>Payment Amount (£)</label>
-      <input name="amount" type="number" step="0.01" min="0.01" value="${balanceDue > 0 ? balanceDue.toFixed(2) : ''}" required>
-
-      <label>Payment Date</label>
-      <input name="date" type="date" value="${today()}" required>
-
-      <label>Payment Method</label>
-      <select name="method">
-        <option>Bank transfer</option>
-        <option>Cash</option>
-        <option>Card / contactless</option>
-        <option>Cheque</option>
-      </select>
-
-      <label>Reference / Note</label>
-      <input name="note" placeholder="e.g. Faster Payments ref or receipt note">
-
-      <button type="submit" class="w">Save Payment</button>
-    </form>
-
-    ${
-      invPayments.length
-        ? `<div style="margin-top:12px">
-             <h3>Recorded Payments (${invPayments.length})</h3>
-             ${invPayments
-               .map(
-                 (p) => `
-                 <div class="row">
-                   <div><b>${GBP(p.amount)}</b> · ${esc(p.method || 'Payment')}<div class="small">${dateFmt(p.date)}${p.note ? ` · ${esc(p.note)}` : ''}</div></div>
-                 </div>`
-               )
-               .join('')}
-           </div>`
-        : ''
-    }
-  `);
-}
-
-async function savePayment(invoiceId) {
-  const f = formData('paymentForm');
-  const amt = Number(f.amount) || 0;
-  if (amt <= 0) return toast('Enter a valid payment amount');
-
+async function markInvoicePaid(invoiceId) {
   const inv = await get('invoices', invoiceId);
   if (!inv) return;
-
-  await put('payments', {
-    id: uid(),
-    invoiceId,
-    jobId: inv.jobId || '',
-    jobRef: inv.jobRef || '',
-    amount: amt,
-    date: f.date || today(),
-    method: f.method || 'Bank transfer',
-    note: (f.note || '').trim(),
-    created: Date.now(),
-    updatedAt: Date.now()
-  });
-
-  const allPayments = (await all('payments')).filter((p) => p.invoiceId === invoiceId);
-  const totalPaid = allPayments.reduce((s, p) => s + (Number(p.amount) || 0), 0);
-  const invTotal = Number(inv.total) || 0;
-  inv.status = totalPaid >= invTotal ? 'Paid' : totalPaid > 0 ? 'Part-paid' : inv.status;
+  inv.paymentStatus = 'Paid';
   inv.updatedAt = Date.now();
-  inv.pdfData = await fileData(
-    new File([await makeInvoicePdf(inv)], inv.filename || `${inv.documentNumber}.pdf`, {
-      type: 'application/pdf'
-    })
-  );
+  const pdfBlob = await makeInvoicePdf(inv);
+  inv.filename = `${formatDocRef('inv', inv.documentNumber || inv.jobRef)}.pdf`;
+  inv.pdfData = await fileData(new File([pdfBlob], inv.filename, { type: 'application/pdf' }));
   await put('invoices', inv);
 
   if (inv.jobId) {
-    const job = await get('jobs', inv.jobId);
-    if (job) {
-      job.paymentStatus = inv.status;
-      if (inv.status === 'Paid' && job.status !== 'Completed') job.status = 'Completed';
-      job.updatedAt = Date.now();
-      await put('jobs', job);
+    const task = await get('jobs', inv.jobId);
+    if (task) {
+      task.paymentStatus = 'Paid';
+      task.status = 'Completed';
+      task.updatedAt = Date.now();
+      await put('jobs', task);
     }
   }
-
-  closeModal();
-  toast('Payment recorded');
+  toast('Invoice marked as Paid');
   await renderInvoicesPage();
 }
 
 async function makeInvoicePdf(inv) {
   const ctx = await createBrandedPdfDocument();
   const { pdf, font, bold, width: W, height: H, margin } = ctx;
+  const invRef = pdfSafeText(inv.documentNumber || formatDocRef('inv', inv.jobRef));
+  const quoRef = pdfSafeText(inv.quoteNumber || formatDocRef('quo', invRef));
+  const tskRef = pdfSafeText(formatDocRef('tsk', invRef));
+  const [ar, ag, ab] = hexToRgbTuple(brand.color || '#0f5c5c');
+  const accentCol = PDFLib.rgb(ar, ag, ab);
+  const inkCol = PDFLib.rgb(0.08, 0.14, 0.18);
+  const mutCol = PDFLib.rgb(0.38, 0.44, 0.49);
+  const ruleCol = PDFLib.rgb(0.82, 0.86, 0.89);
+  const tintCol = PDFLib.rgb(0.95, 0.97, 0.98);
+  const contentW = W - margin * 2;
+  const amtColX = W - margin - 92;
+
   let page = pdf.addPage([W, H]);
-  let y = drawStandardPdfHeader(ctx, page, 'INVOICE', inv.documentNumber || '');
+  let y = drawStandardPdfHeader(ctx, page, 'INVOICE', invRef);
+
+  function startInvoicePage() {
+    page = pdf.addPage([W, H]);
+    y = drawStandardPdfHeader(ctx, page, 'INVOICE', invRef);
+  }
 
   function ensureSpace(needed = 24) {
     if (y - needed < 68) {
-      page = pdf.addPage([W, H]);
-      y = drawStandardPdfHeader(ctx, page, 'INVOICE', inv.documentNumber || '');
+      startInvoicePage();
     }
   }
 
-  function writeLine(text, size = 9.5, isBold = false, indent = 0) {
-    const blocks = String(text || '').split('\n');
+  function wrapLines(text, size, maxWidth) {
+    const out = [];
+    const blocks = pdfSafeText(text || '').split('\n');
     for (const blk of blocks) {
       const words = blk.trim().split(/\s+/).filter(Boolean);
       if (!words.length) {
-        ensureSpace(size + 5);
-        y -= size + 5;
+        out.push('');
         continue;
       }
-      const maxW = W - margin * 2 - indent;
       let line = '';
       for (const w of words) {
         const test = line ? `${line} ${w}` : w;
-        if (font.widthOfTextAtSize(test, size) > maxW && line) {
-          ensureSpace(size + 5);
-          page.drawText(line, {
-            x: margin + indent,
-            y,
-            size,
-            font: isBold ? bold : font,
-            color: PDFLib.rgb(0.08, 0.14, 0.18)
-          });
-          y -= size + 5;
+        if (font.widthOfTextAtSize(pdfSafeText(test), size) > maxWidth && line) {
+          out.push(line);
           line = w;
         } else {
           line = test;
         }
       }
-      if (line) {
-        ensureSpace(size + 5);
-        page.drawText(line, {
-          x: margin + indent,
-          y,
-          size,
-          font: isBold ? bold : font,
-          color: PDFLib.rgb(0.08, 0.14, 0.18)
-        });
-        y -= size + 5;
-      }
+      if (line) out.push(line);
+    }
+    return out;
+  }
+
+  function drawTableHeader() {
+    ensureSpace(28);
+    page.drawRectangle({
+      x: margin,
+      y: y - 4,
+      width: contentW,
+      height: 20,
+      color: accentCol
+    });
+    page.drawText('DESCRIPTION OF WORK / ITEM', {
+      x: margin + 8,
+      y: y + 2,
+      size: 8.8,
+      font: bold,
+      color: PDFLib.rgb(1, 1, 1)
+    });
+    page.drawText('AMOUNT', {
+      x: amtColX,
+      y: y + 2,
+      size: 8.8,
+      font: bold,
+      color: PDFLib.rgb(1, 1, 1)
+    });
+    y -= 24;
+  }
+
+  // Top Two-Column Summary Block: Bill To (Left) & Invoice Details (Right)
+  const leftX = margin;
+  const rightX = margin + contentW * 0.54;
+  const leftMaxW = contentW * 0.5;
+  const rightMaxW = contentW * 0.44;
+
+  const clientLines = [
+    ...(inv.customerName ? [inv.customerName] : []),
+    ...(inv.customerAddress ? inv.customerAddress.replace(/\n/g, ', ').split(', ') : []),
+    ...([inv.customerPhone, inv.customerEmail].filter(Boolean).length
+      ? [[inv.customerPhone, inv.customerEmail].filter(Boolean).join(' - ')]
+      : [])
+  ];
+
+  const metaLines = [
+    `Invoice Ref: ${invRef}`,
+    `Quotation Ref: ${quoRef}`,
+    `Task Ref: ${tskRef}`,
+    `Invoice Date: ${dateFmt(inv.createdDate || '') || '-'}`,
+    ...(inv.dueDate ? [`Due Date: ${dateFmt(inv.dueDate)}`] : []),
+    `Status: ${inv.paymentStatus || 'Unpaid'}`,
+    ...(inv.paymentMethod ? [`Method: ${inv.paymentMethod}`] : [])
+  ];
+
+  ensureSpace(110);
+  const blockTopY = y;
+  page.drawRectangle({
+    x: margin,
+    y: blockTopY - 96,
+    width: contentW,
+    height: 100,
+    color: tintCol
+  });
+
+  page.drawText('BILL TO', {
+    x: leftX + 8,
+    y: blockTopY - 12,
+    size: 8.5,
+    font: bold,
+    color: accentCol
+  });
+  let ly = blockTopY - 26;
+  for (const rawL of clientLines.slice(0, 4)) {
+    const wrapped = wrapLines(rawL, 9, leftMaxW);
+    for (const wl of wrapped.slice(0, 2)) {
+      page.drawText(pdfSafeText(wl), {
+        x: leftX + 8,
+        y: ly,
+        size: 9,
+        font: rawL === inv.customerName ? bold : font,
+        color: inkCol
+      });
+      ly -= 12;
     }
   }
 
-  function sectionHeading(title) {
-    ensureSpace(26);
-    y -= 6;
-    page.drawText(title.toUpperCase(), {
-      x: margin,
+  page.drawText('INVOICE SUMMARY', {
+    x: rightX,
+    y: blockTopY - 12,
+    size: 8.5,
+    font: bold,
+    color: accentCol
+  });
+  let ry = blockTopY - 26;
+  for (const mLine of metaLines.slice(0, 6)) {
+    const wrapped = wrapLines(mLine, 8.8, rightMaxW);
+    for (const wl of wrapped.slice(0, 1)) {
+      page.drawText(pdfSafeText(wl), {
+        x: rightX,
+        y: ry,
+        size: 8.8,
+        font: mLine.startsWith('Invoice Ref:') || mLine.startsWith('Status:') ? bold : font,
+        color: inkCol
+      });
+      ry -= 11.5;
+    }
+  }
+
+  y = blockTopY - 114;
+
+  // Itemised Table
+  drawTableHeader();
+  const descMaxW = amtColX - margin - 16;
+
+  for (let i = 0; i < (inv.items || []).length; i++) {
+    const item = inv.items[i];
+    const descLines = wrapLines(`${i + 1}. ${item.description || 'Task item'}`, 9.5, descMaxW);
+    const rowHeight = Math.max(22, descLines.length * 13 + 8);
+    if (y - rowHeight < 68) {
+      startInvoicePage();
+      drawTableHeader();
+    }
+
+    let curY = y;
+    for (const dl of descLines) {
+      page.drawText(pdfSafeText(dl), {
+        x: margin + 8,
+        y: curY,
+        size: 9.5,
+        font,
+        color: inkCol
+      });
+      curY -= 13;
+    }
+
+    page.drawText(pdfSafeText(GBP(item.amount)), {
+      x: amtColX,
       y,
       size: 9.5,
       font: bold,
-      color: PDFLib.rgb(...hexToRgbTuple(brand.color || '#0f5c5c'))
+      color: inkCol
     });
-    y -= 15;
+
+    y -= rowHeight;
+    page.drawLine({
+      start: { x: margin, y: y + 4 },
+      end: { x: W - margin, y: y + 4 },
+      thickness: 0.5,
+      color: ruleCol
+    });
+    y -= 4;
   }
 
-  sectionHeading('Bill To & Reference Details');
-  writeLine(inv.customerName || '', 11, true);
-  if (inv.customerAddress) writeLine(inv.customerAddress.replace(/\n/g, ', '), 9.5);
-  if (inv.customerPhone || inv.customerEmail) {
-    writeLine([inv.customerPhone, inv.customerEmail].filter(Boolean).join(' · '), 9);
-  }
-  writeLine(
-    `Task Ref: ${inv.jobRef || 'N/A'}${inv.quoteNumber ? ` · Quote Ref: ${inv.quoteNumber}` : ''} · Status: ${inv.status || 'Not paid'}`,
-    9.5,
-    true
-  );
-  writeLine(
-    `Invoice Date: ${dateFmt(inv.issueDate || '')}${inv.dueDate ? ` · Due Date: ${dateFmt(inv.dueDate)}` : ''}`,
-    9.5
-  );
+  // Totals & Balance Summary Box (Right-Aligned)
+  const totalVal = Number(inv.total) || 0;
+  const paidVal = inv.paymentStatus === 'Paid' ? totalVal : 0;
+  const balanceVal = Math.max(0, totalVal - paidVal);
 
-  sectionHeading('Invoice Line Items');
-  for (const item of inv.items || []) {
-    writeLine(`${item.description} — ${GBP(item.amount)}`, 10, false, 4);
-  }
+  ensureSpace(78);
+  y -= 8;
+  const boxW = 220;
+  const boxX = W - margin - boxW;
+  page.drawRectangle({
+    x: boxX,
+    y: y - 58,
+    width: boxW,
+    height: 64,
+    color: tintCol
+  });
 
-  ensureSpace(34);
-  y -= 6;
+  page.drawText('Subtotal:', { x: boxX + 10, y: y - 10, size: 9.2, font, color: mutCol });
+  page.drawText(pdfSafeText(GBP(totalVal)), { x: boxX + 125, y: y - 10, size: 9.2, font: bold, color: inkCol });
+
+  page.drawText('Paid:', { x: boxX + 10, y: y - 25, size: 9.2, font, color: mutCol });
+  page.drawText(pdfSafeText(GBP(paidVal)), { x: boxX + 125, y: y - 25, size: 9.2, font: bold, color: inkCol });
+
   page.drawLine({
-    start: { x: margin, y: y + 10 },
-    end: { x: W - margin, y: y + 10 },
-    thickness: 1,
-    color: PDFLib.rgb(0.75, 0.8, 0.83)
+    start: { x: boxX + 10, y: y - 33 },
+    end: { x: boxX + boxW - 10, y: y - 33 },
+    thickness: 0.75,
+    color: ruleCol
   });
-  page.drawText(`TOTAL DUE: ${GBP(inv.total)}`, {
-    x: margin,
-    y,
-    size: 13,
-    font: bold,
-    color: PDFLib.rgb(0.08, 0.14, 0.18)
-  });
-  y -= 24;
 
-  const bankText = inv.bankDetails || brand.bankDetails || '';
-  if (bankText) {
-    sectionHeading('Payment / Bank Transfer Details');
-    writeLine(bankText, 9.5);
+  page.drawText('TOTAL DUE:', { x: boxX + 10, y: y - 48, size: 10.5, font: bold, color: accentCol });
+  page.drawText(pdfSafeText(GBP(balanceVal)), { x: boxX + 125, y: y - 48, size: 10.5, font: bold, color: inkCol });
+
+  y -= 78;
+
+  // Payment Details & Notes
+  if (inv.bankDetails) {
+    ensureSpace(46);
+    page.drawText('PAYMENT / BANK TRANSFER DETAILS', {
+      x: margin,
+      y,
+      size: 9,
+      font: bold,
+      color: accentCol
+    });
+    y -= 14;
+    for (const bl of wrapLines(inv.bankDetails, 9, contentW)) {
+      ensureSpace(16);
+      page.drawText(pdfSafeText(bl), { x: margin, y, size: 9, font, color: inkCol });
+      y -= 13;
+    }
+    y -= 6;
   }
 
   if (inv.notes) {
-    sectionHeading('Notes');
-    writeLine(inv.notes, 9.5);
+    ensureSpace(46);
+    page.drawText('NOTES & PAYMENT TERMS', {
+      x: margin,
+      y,
+      size: 9,
+      font: bold,
+      color: accentCol
+    });
+    y -= 14;
+    for (const nl of wrapLines(inv.notes, 9, contentW)) {
+      ensureSpace(16);
+      page.drawText(pdfSafeText(nl), { x: margin, y, size: 9, font, color: inkCol });
+      y -= 13;
+    }
   }
 
-  applyStandardPdfFooters(ctx, 'Invoice Record');
+  applyStandardPdfFooters(ctx, `Invoice ${invRef}`);
   return new Blob([await pdf.save()], { type: 'application/pdf' });
 }
 
@@ -601,7 +651,7 @@ async function resolveInvoiceBlob(inv) {
   return await makeInvoicePdf(inv);
 }
 
-async function openInvoicePdf(invoiceId) {
+async function openInvoicePdfById(invoiceId) {
   const win = window.open('about:blank', '_blank');
   try {
     const inv = await get('invoices', invoiceId);
@@ -614,7 +664,7 @@ async function openInvoicePdf(invoiceId) {
   }
 }
 
-async function shareInvoicePdf(invoiceId) {
+async function shareInvoicePdfById(invoiceId) {
   try {
     const inv = await get('invoices', invoiceId);
     if (!inv) throw new Error('Invoice not found');
@@ -622,7 +672,7 @@ async function shareInvoicePdf(invoiceId) {
     await shareOrDownloadFile(
       blob,
       inv.filename || `${inv.documentNumber || 'Invoice'}.pdf`,
-      `Invoice ${inv.documentNumber || inv.jobRef || ''}`
+      `Invoice ${inv.documentNumber || ''}`
     );
   } catch (e) {
     toast('Could not share invoice PDF: ' + e.message);
@@ -632,7 +682,7 @@ async function shareInvoicePdf(invoiceId) {
 function confirmDeleteInvoice(invoiceId) {
   modal(`
     <h2>Delete Invoice?</h2>
-    <p class="m">Remove this invoice record? The linked task and quotation remain untouched.</p>
+    <p class="m">Remove this invoice record? The task and quotation remain untouched.</p>
     <button type="button" class="danger w" onclick="deleteInvoice('${esc(invoiceId)}')">Yes, Delete Invoice</button>
   `);
 }
@@ -652,7 +702,7 @@ async function deleteInvoice(invoiceId) {
     if (params.taskId) {
       const tId = params.taskId;
       clearQueryParams();
-      await openInvoiceForm(tId);
+      await openInvoiceEditor(tId);
     }
   } catch (e) {
     console.error('Invoices boot error:', e);
