@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="theme-color" content="#0f5c5c">
-<title>Handyman Manager · Tasks &amp; Quotations</title>
+<title>Handyman Manager - Tasks &amp; Quotations</title>
 <style>
 :root{--ink:#14232f;--bg:#e9edef;--card:#fff;--ac:#0f5c5c;--tape:#f2c230;--mut:#5b6b76;--bad:#b3261e;--ok:#1b7a43;--ln:#cfd7dc}
 *{box-sizing:border-box}
@@ -31,12 +31,12 @@ textarea{min-height:82px}
 label{font-weight:650;font-size:14px;display:block}
 .row{display:flex;justify-content:space-between;gap:10px;padding:10px 0;border-bottom:1px solid var(--ln);align-items:center}
 .row:last-child{border:0;padding-bottom:0}
-.clickable{cursor:pointer}
 .tag{background:var(--tape);color:#111;border-radius:6px;padding:3px 8px;font-size:12px;font-weight:700;white-space:nowrap}
+.tag.ok{background:#dcfce7;color:#166534}
 .doc-card{border:1px solid var(--ln);border-radius:10px;padding:11px;margin:10px 0;background:#fafbfc}
 .doc-actions{display:flex;gap:6px;flex-wrap:wrap;margin-top:8px}
-.pipeline-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px;margin-top:10px}
-.pipeline-grid button{width:100%;margin:0;font-size:13px}
+.thumbs{display:flex;gap:8px;flex-wrap:wrap;margin:8px 0}
+.thumbs img{width:84px;height:84px;object-fit:cover;border-radius:8px;border:1px solid var(--ln)}
 nav{position:fixed;bottom:0;left:0;right:0;display:flex;background:white;border-top:1px solid var(--ln);padding-bottom:env(safe-area-inset-bottom);z-index:6}
 nav button{flex:1;background:none;color:var(--mut);border-radius:0;margin:0;min-height:58px;font-size:12px;padding:4px}
 nav button.on{color:var(--ac);box-shadow:inset 0 3px var(--tape);font-weight:700}
@@ -52,10 +52,10 @@ dialog::backdrop{background:#0008}
 <script>
 "use strict";
 
-const TASK_CATEGORIES = [
+const TASK_TYPES = [
+  'Replacing silicone sealant',
   'Garden gate repair',
   'Hanging shelves or hooks',
-  'Replacing silicone sealant',
   'Flat-pack furniture assembly',
   'Painting and decorating',
   'Minor plumbing repair',
@@ -66,321 +66,12 @@ const TASK_CATEGORIES = [
   'Lock or handle replacement',
   'Gutter or downpipe minor repair',
   'Picture or mirror hanging',
-  'General maintenance',
-  'Other / bespoke task'
+  'General / Bespoke Task'
 ];
 
-let taskState = {
-  view: 'list', // 'list' | 'task'
-  id: null,
-  filter: 'all', // 'all' | 'active' | 'completed'
-  search: ''
-};
+let pendingTaskPhotos = [];
 
-function switchTaskView(view, id = null, filter = taskState.filter) {
-  taskState.view = view;
-  taskState.id = id;
-  taskState.filter = filter;
-  renderTasksPage();
-}
-
-function setTaskSearch(val) {
-  taskState.search = String(val || '').trim().toLowerCase();
-  renderTasksPage(true);
-}
-
-async function renderTasksPage(preserveFocus = false) {
-  const viewEl = $('#view');
-  try {
-    if (taskState.view === 'task' && taskState.id) {
-      viewEl.innerHTML = await renderTaskDetail(taskState.id);
-    } else {
-      viewEl.innerHTML = await renderTasksList();
-    }
-
-    if (preserveFocus) {
-      const inp = $('#taskSearch');
-      if (inp) {
-        inp.focus();
-        inp.setSelectionRange(inp.value.length, inp.value.length);
-      }
-    } else {
-      window.scrollTo(0, 0);
-    }
-  } catch (e) {
-    console.error(e);
-    viewEl.innerHTML = `<div class="c"><b style="color:var(--bad)">Error:</b> ${esc(e.message)}</div>`;
-  }
-}
-
-async function renderTasksList() {
-  const [tasks, quotes] = await Promise.all([
-    all('jobs').then((list) => list.sort((a, b) => (b.created || 0) - (a.created || 0))),
-    all('quotes')
-  ]);
-  const quoteByTask = new Map(quotes.map((q) => [q.jobId, q]));
-  const q = taskState.search;
-
-  const filtered = tasks.filter((t) => {
-    if (taskState.filter === 'active' && ['Completed', 'Cancelled'].includes(t.status)) return false;
-    if (taskState.filter === 'completed' && t.status !== 'Completed') return false;
-    if (q) {
-      const hay = `${t.ref || ''} ${t.customerName || ''} ${t.customerAddress || ''} ${t.description || ''} ${t.task || ''} ${t.status || ''}`.toLowerCase();
-      if (!hay.includes(q)) return false;
-    }
-    return true;
-  });
-
-  return `
-    <div class="c">
-      <h2>Tasks &amp; Quotations (${tasks.length})</h2>
-      <p class="m">Assign a task to a registered customer, create a quotation, and move into Legal Contracts, QA, or Invoices.</p>
-      <input id="taskSearch" type="search" placeholder="Search task ref, customer, work or status..." value="${esc(taskState.search)}" oninput="setTaskSearch(this.value)">
-      <div style="margin-bottom:8px">
-        <button type="button" class="${taskState.filter === 'all' ? '' : 'secondary'}" onclick="switchTaskView('list', null, 'all')">All</button>
-        <button type="button" class="${taskState.filter === 'active' ? '' : 'secondary'}" onclick="switchTaskView('list', null, 'active')">Active</button>
-        <button type="button" class="${taskState.filter === 'completed' ? '' : 'secondary'}" onclick="switchTaskView('list', null, 'completed')">Completed</button>
-      </div>
-      <button type="button" class="w" onclick="taskForm()">+ Assign Task &amp; Create Quote</button>
-    </div>
-
-    ${
-      filtered.length
-        ? filtered
-            .map((t) => {
-              const linkedQuote = quoteByTask.get(t.id);
-              const displayAmount = linkedQuote ? linkedQuote.total : t.amount;
-              return `
-                <div class="c clickable" onclick="switchTaskView('task', '${esc(t.id)}')">
-                  <div style="display:flex;justify-content:space-between;align-items:center;gap:8px">
-                    <b>${esc(t.ref)} · ${esc(t.customerName)}</b>
-                    <span class="tag">${esc(t.status || 'Enquiry')}</span>
-                  </div>
-                  <p style="margin:6px 0">${esc(t.task || t.description)}</p>
-                  <div class="m">
-                    ${GBP(displayAmount)}
-                    ${linkedQuote ? ` · Quote ${esc(linkedQuote.documentNumber)}` : ' · No quote yet'}
-                  </div>
-                </div>`;
-            })
-            .join('')
-        : `<div class="c"><p class="m">${q || taskState.filter !== 'all' ? 'No tasks match your filter.' : 'No tasks created yet.'}</p></div>`
-    }
-  `;
-}
-
-async function renderTaskDetail(id) {
-  const t = await get('jobs', id);
-  if (!t) {
-    return `<div class="c"><p>Task not found.</p><button type="button" class="secondary" onclick="switchTaskView('list')">Back to tasks</button></div>`;
-  }
-
-  const [quotes, docs, qaReports, invoices] = await Promise.all([
-    all('quotes').then((list) => list.filter((q) => q.jobId === id).sort((a, b) => (b.created || 0) - (a.created || 0))),
-    all('docs').then((list) => list.filter((d) => d.jobId === id).sort((a, b) => (b.created || 0) - (a.created || 0))),
-    all('qaReports').then((list) => list.filter((r) => r.jobId === id).sort((a, b) => (b.created || 0) - (a.created || 0))),
-    all('invoices').then((list) => list.filter((inv) => inv.jobId === id).sort((a, b) => (b.created || 0) - (a.created || 0)))
-  ]);
-
-  const activeQuote = quotes[0] || null;
-  const quotedTotal = activeQuote ? Number(activeQuote.total) || 0 : Number(t.amount) || 0;
-
-  return `
-    <button type="button" class="secondary" style="margin-bottom:10px" onclick="switchTaskView('list')">&larr; All Tasks</button>
-    <h2>${esc(t.ref)}</h2>
-
-    <div class="c">
-      <div style="display:flex;justify-content:space-between;align-items:center;gap:8px;margin-bottom:8px">
-        <span class="tag">${esc(t.status || 'Enquiry')}</span>
-        <span class="small">Created ${new Date(t.created || Date.now()).toLocaleDateString('en-GB')}</span>
-      </div>
-
-      <p style="margin:6px 0">
-        <b class="clickable" style="text-decoration:underline" onclick="navigateTo('customers.html', { id: '${esc(t.customerId)}' })">${esc(t.customerName)}</b><br>
-        ${esc(t.customerAddress || '')}
-      </p>
-      <p style="margin:6px 0">${esc(t.description)}</p>
-      ${t.task ? `<div class="row"><span>Task category</span><b>${esc(t.task)}</b></div>` : ''}
-      <div class="row"><span>Quote / agreed total</span><b>${GBP(quotedTotal)}</b></div>
-      <div class="row"><span>Payment status</span><b>${esc(t.paymentStatus || 'Not paid')}</b></div>
-
-      <label style="margin-top:10px">Task status</label>
-      <select onchange="updateTaskField('${esc(id)}', 'status', this.value)">
-        ${['Enquiry', 'Quoted', 'Accepted', 'Scheduled', 'In progress', 'Completed', 'Cancelled']
-          .map((s) => `<option ${t.status === s ? 'selected' : ''}>${s}</option>`)
-          .join('')}
-      </select>
-
-      <div style="margin-top:8px;display:flex;flex-wrap:wrap;gap:6px">
-        <button type="button" onclick="taskForm('', '${esc(id)}')">Edit Task</button>
-        <button type="button" class="danger" onclick="confirmDeleteTask('${esc(id)}')">Delete Task</button>
-      </div>
-    </div>
-
-    <!-- Workflow Pipeline for this Task Reference -->
-    <div class="c">
-      <h3>Next Steps for ${esc(t.ref)}</h3>
-      <p class="m">All documents below pull customer, task reference, and quote details automatically.</p>
-      <div class="pipeline-grid">
-        <button type="button" class="secondary" onclick="navigateTo('legal.html', { taskId: '${esc(id)}', action: 'new' })">
-          Legal (${docs.length})
-        </button>
-        <button type="button" class="secondary" onclick="navigateTo('qa.html', { taskId: '${esc(id)}', action: 'new' })">
-          QA (${qaReports.length})
-        </button>
-        <button type="button" class="secondary" onclick="navigateTo('invoices.html', { taskId: '${esc(id)}', action: 'new' })">
-          Invoice (${invoices.length})
-        </button>
-      </div>
-    </div>
-
-    <!-- Quotations Linked to this Task -->
-    <div class="c">
-      <h3>Quotations (${quotes.length})</h3>
-      <button type="button" class="w" onclick="quoteForm('${esc(id)}', '${esc(activeQuote?.id || '')}')">
-        ${activeQuote ? '+ Create / Edit Quotation' : '+ Create Quotation for Task'}
-      </button>
-
-      ${
-        quotes.length
-          ? quotes
-              .map(
-                (q) => `
-                <div class="doc-card">
-                  <div style="display:flex;justify-content:space-between;align-items:center;gap:8px">
-                    <b>${esc(q.documentNumber || 'Quotation')}</b>
-                    <span class="tag">${esc(q.status || 'Draft')}</span>
-                  </div>
-                  <div class="m" style="margin-top:4px">${GBP(q.total)} · ${dateFmt(q.createdDate || '')}</div>
-                  ${q.validUntil ? `<div class="small">Valid until: ${dateFmt(q.validUntil)}</div>` : ''}
-                  <div class="doc-actions">
-                    <button type="button" onclick="openQuotePdf('${esc(q.id)}')">View / Save PDF</button>
-                    <button type="button" class="secondary" onclick="shareQuotePdf('${esc(q.id)}')">Share</button>
-                    <button type="button" class="secondary" onclick="quoteForm('${esc(id)}', '${esc(q.id)}')">Edit</button>
-                    <button type="button" class="danger" onclick="confirmDeleteQuote('${esc(q.id)}', '${esc(id)}')">Delete</button>
-                  </div>
-                </div>`
-              )
-              .join('')
-          : '<p class="m" style="margin-top:8px">No quotation created for this task yet.</p>'
-      }
-    </div>
-  `;
-}
-
-// ============================================================================
-// TASK FORM & CRUD
-// ============================================================================
-async function taskForm(preselectedCustomerId = '', taskId = '') {
-  const customers = (await all('customers')).sort((a, b) =>
-    (a.name || '').localeCompare(b.name || '')
-  );
-
-  if (!customers.length && !preselectedCustomerId && !taskId) {
-    toast('Register a customer first');
-    return navigateTo('customers.html', { action: 'new' });
-  }
-
-  const existing = taskId ? await get('jobs', taskId) : null;
-  const t = existing || {};
-  const chosenCustomerId = t.customerId || preselectedCustomerId || customers[0]?.id || '';
-
-  modal(`
-    <h2>${taskId ? 'Edit' : 'Assign'} Task</h2>
-    <form id="taskForm" onsubmit="event.preventDefault();saveTask('${esc(taskId)}')">
-      <label>Customer</label>
-      <select name="customerId" required>
-        ${customers
-          .map(
-            (c) =>
-              `<option value="${esc(c.id)}" ${chosenCustomerId === c.id ? 'selected' : ''}>${esc(c.name)}</option>`
-          )
-          .join('')}
-      </select>
-
-      <label>Task Reference Number</label>
-      <input name="ref" value="${esc(t.ref || ('JOB-' + String(Date.now()).slice(-6)))}" required>
-
-      <label>Task Category</label>
-      <select name="task">
-        <option value="">General / choose later</option>
-        ${TASK_CATEGORIES.map((cat) => `<option ${t.task === cat ? 'selected' : ''}>${esc(cat)}</option>`).join('')}
-      </select>
-
-      <label>Task / Work Description</label>
-      <textarea name="description" required placeholder="Describe the work required for this task...">${esc(t.description || '')}</textarea>
-
-      <label>Task Address (leave blank to use customer address)</label>
-      <textarea name="customerAddress" placeholder="Optional property address if different from customer record">${esc(t.customerAddress || '')}</textarea>
-
-      <label>Estimated / Agreed Amount (£)</label>
-      <input name="amount" type="number" step="0.01" min="0" value="${t.amount ?? ''}" placeholder="0.00">
-
-      <button type="submit" class="w">${taskId ? 'Save Task Changes' : 'Save Task'}</button>
-    </form>
-  `);
-}
-
-async function saveTask(taskId = '') {
-  const f = formData('taskForm');
-  const customer = await get('customers', f.customerId);
-  if (!customer) return toast('Please select a valid customer');
-  if (!f.description || !f.description.trim()) return toast('Please enter a task description');
-
-  const old = taskId ? await get('jobs', taskId) : null;
-  const record = {
-    ...(old || {}),
-    id: taskId || uid(),
-    ref: (f.ref || old?.ref || ('JOB-' + String(Date.now()).slice(-6))).trim(),
-    customerId: customer.id,
-    customerName: customer.name,
-    customerAddress: (f.customerAddress || '').trim() || customer.address || '',
-    description: f.description.trim(),
-    task: f.task || '',
-    amount: Number(f.amount) || 0,
-    paymentStatus: old?.paymentStatus || 'Not paid',
-    status: old?.status || 'Enquiry',
-    created: old?.created || Date.now(),
-    updatedAt: Date.now()
-  };
-
-  await put('jobs', record);
-  closeModal();
-  toast(taskId ? 'Task updated' : 'Task created');
-  switchTaskView('task', record.id);
-}
-
-async function updateTaskField(id, key, value) {
-  const t = await get('jobs', id);
-  if (!t) return;
-  t[key] = value;
-  t.updatedAt = Date.now();
-  await put('jobs', t);
-  toast('Task status updated');
-  if (taskState.view === 'task' && taskState.id === id) {
-    renderTasksPage();
-  }
-}
-
-function confirmDeleteTask(id) {
-  modal(`
-    <h2>Delete Task?</h2>
-    <p class="m">Remove this task record? Existing quotations, contracts, QA reports, and invoices will not be automatically deleted.</p>
-    <button type="button" class="danger w" onclick="deleteTask('${esc(id)}')">Yes, Delete Task</button>
-  `);
-}
-
-async function deleteTask(id) {
-  await del('jobs', id);
-  closeModal();
-  toast('Task deleted');
-  switchTaskView('list');
-}
-
-// ============================================================================
-// QUOTATION FORM, PDF GENERATION, SHARE & CRUD
-// ============================================================================
-function parseLineItems(text) {
+function parseQuoteLines(text) {
   return String(text || '')
     .split('\n')
     .map((line) => line.trim())
@@ -393,216 +84,479 @@ function parseLineItems(text) {
     });
 }
 
-function totalLineItems(items) {
+function sumQuoteLines(items) {
   return items.reduce((sum, item) => sum + (Number(item.amount) || 0), 0);
 }
 
-function buildBrandDocPrefix() {
-  const words = String(brand.name || 'HM')
-    .replace(/[^a-zA-Z0-9\s]/g, ' ')
-    .trim()
-    .split(/\s+/)
-    .filter(Boolean);
-  const letters = words.map((w) => w[0]).join('').toUpperCase().slice(0, 4);
-  return letters || 'QTE';
+async function renderTasksPage() {
+  const [tasks, quotes] = await Promise.all([
+    all('jobs').then((list) => list.sort((a, b) => (b.created || 0) - (a.created || 0))),
+    all('quotes').then((list) => list.sort((a, b) => (b.created || 0) - (a.created || 0)))
+  ]);
+
+  const quoteByTask = new Map();
+  for (const q of quotes) {
+    if (!quoteByTask.has(q.jobId)) quoteByTask.set(q.jobId, q);
+  }
+
+  $('#view').innerHTML = `
+    <div class="c">
+      <h2>Tasks &amp; Quotations</h2>
+      <p class="m">Assign tasks with a shared reference sequence (e.g. <code>${esc(formatDocRef('tsk', '001'))}</code> / <code>${esc(formatDocRef('quo', '001'))}</code>), attach photos, and generate PDF quotations.</p>
+      <button type="button" class="w" onclick="openTaskForm()">+ New Task &amp; Quotation</button>
+    </div>
+
+    <div class="c">
+      <h3>Active Tasks (${tasks.length})</h3>
+      ${
+        tasks.length
+          ? tasks
+              .map((t) => {
+                const q = quoteByTask.get(t.id);
+                const tRef = formatDocRef('tsk', t.ref);
+                const qRef = formatDocRef('quo', q?.documentNumber || t.ref);
+                const displayTotal = q ? Number(q.total) || 0 : Number(t.amount) || 0;
+                const badgeClass =
+                  t.status === 'Completed' || t.paymentStatus === 'Paid' ? 'ok' : '';
+                return `
+                  <div class="doc-card">
+                    <div style="display:flex;justify-content:space-between;align-items:center;gap:8px">
+                      <b>${esc(tRef)} - ${esc(t.customerName)}</b>
+                      <span class="tag ${badgeClass}">${esc(t.status || 'Quoted')}</span>
+                    </div>
+                    <div class="m" style="margin-top:4px">
+                      <b>${esc(t.task || 'Task')}</b> - ${esc(t.description || '')}
+                    </div>
+                    <div class="small">
+                      Quote: <b>${esc(qRef)}</b> - Amount: <b>${GBP(displayTotal)}</b>
+                      ${t.scheduledDate ? ` - Planned Start: ${dateFmt(t.scheduledDate)}` : ''}
+                      ${t.customerAddress ? ` - ${esc(t.customerAddress)}` : ''}
+                    </div>
+                    <div class="doc-actions">
+                      <button type="button" onclick="openQuoteEditor('${esc(t.id)}')">${q ? 'Edit / PDF Quote' : 'Create Quote'}</button>
+                      ${
+                        q
+                          ? `<button type="button" class="secondary" onclick="viewQuotePdfById('${esc(q.id)}')">View Quote PDF</button>
+                             <button type="button" class="secondary" onclick="shareQuotePdfById('${esc(q.id)}')">Share Quote</button>`
+                          : ''
+                      }
+                      <button type="button" class="secondary" onclick="navigateTo('legal.html', { taskId: '${esc(t.id)}' })">Contract</button>
+                      <button type="button" class="secondary" onclick="navigateTo('qa.html', { taskId: '${esc(t.id)}' })">QA</button>
+                      <button type="button" class="secondary" onclick="navigateTo('invoices.html', { taskId: '${esc(t.id)}' })">Invoice</button>
+                      <button type="button" class="secondary" onclick="openTaskForm('${esc(t.id)}')">Edit Task</button>
+                      <button type="button" class="danger" onclick="confirmDeleteTask('${esc(t.id)}')">Delete</button>
+                    </div>
+                  </div>`;
+              })
+              .join('')
+          : '<p class="m">No tasks yet. Tap "+ New Task &amp; Quotation" above to get started.</p>'
+      }
+    </div>
+  `;
 }
 
-async function quoteForm(taskId, quoteId = '') {
-  const t = await get('jobs', taskId);
-  if (!t) return toast('Task not found');
-  const q = quoteId ? await get('quotes', quoteId) : {};
-  const defaultItems = q.itemsText || `${t.task || t.description} | ${Number(t.amount) || 0}`;
+async function openTaskForm(existingTaskId = '', preselectedCustomerId = '') {
+  const existing = existingTaskId ? await get('jobs', existingTaskId) : null;
+  const customers = (await all('customers')).sort((a, b) =>
+    (a.name || '').localeCompare(b.name || '')
+  );
+
+  if (!customers.length && !existing) {
+    toast('Add a customer first');
+    return navigateTo('customers.html', { action: 'new' });
+  }
+
+  pendingTaskPhotos = Array.isArray(existing?.photos) ? [...existing.photos] : [];
+  const chosenCustomerId = existing?.customerId || preselectedCustomerId || customers[0]?.id || '';
+  const initialRefPreview = existing
+    ? formatDocRef('tsk', existing.ref)
+    : 'Assigned automatically from 001 on save';
 
   modal(`
-    <h2>${quoteId ? 'Edit' : 'Create'} Quotation</h2>
-    <p class="m">Task <b>${esc(t.ref)}</b> · ${esc(t.customerName)}</p>
-    <form id="quoteForm" onsubmit="event.preventDefault();saveQuote('${esc(taskId)}','${esc(quoteId)}')">
-      <label>Line items (one per line: description | amount)</label>
-      <textarea name="items" required placeholder="Labour | 85.00&#10;Materials | 24.50">${esc(defaultItems)}</textarea>
-
-      <label>Scope, notes &amp; exclusions</label>
-      <textarea name="notes">${esc(q.notes || t.description || '')}</textarea>
-
-      <label>Quotation date</label>
-      <input name="createdDate" type="date" value="${esc(q.createdDate || today())}" required>
-
-      <label>Valid until</label>
-      <input name="validUntil" type="date" value="${esc(q.validUntil || '')}">
-
-      <label>Quotation status</label>
-      <select name="status">
-        ${['Draft', 'Sent', 'Accepted', 'Declined', 'Expired']
-          .map((st) => `<option ${(q.status || 'Draft') === st ? 'selected' : ''}>${st}</option>`)
+    <h2>${existing ? 'Edit Task' : 'New Task & Quotation'}</h2>
+    <form id="taskForm" onsubmit="event.preventDefault();saveTask('${esc(existing?.id || '')}')">
+      <label>Customer</label>
+      <select name="customerId" required>
+        ${customers
+          .map(
+            (c) =>
+              `<option value="${esc(c.id)}" ${c.id === chosenCustomerId ? 'selected' : ''}>${esc(c.name)}${c.address ? ` - ${esc(c.address)}` : ''}</option>`
+          )
           .join('')}
       </select>
+
+      <label>Task Reference</label>
+      <input name="ref" value="${esc(initialRefPreview)}" readonly>
+
+      <label>Task Category</label>
+      <select name="task">
+        ${TASK_TYPES.map(
+          (tt) => `<option ${(existing?.task || TASK_TYPES[0]) === tt ? 'selected' : ''}>${esc(tt)}</option>`
+        ).join('')}
+      </select>
+
+      <label>Scope of Work / Task Description</label>
+      <textarea name="description" required placeholder="Describe the task, materials, and site location...">${esc(existing?.description || '')}</textarea>
+
+      <label>Quotation Line Items (one per line: description | amount)</label>
+      <textarea name="quoteLines" placeholder="e.g. Silicone sealant replacement | 85.00">${esc(
+        existing?.quoteLinesText ||
+          (existing?.description ? `${existing.description} | ${Number(existing.amount) || 0}` : '')
+      )}</textarea>
+
+      <label>Planned Start of Work Date (Optional)</label>
+      <input name="scheduledDate" type="date" value="${esc(existing?.scheduledDate || '')}">
+
+      <label>Task Status</label>
+      <select name="status">
+        ${['Quoted', 'Booked', 'In Progress', 'Completed']
+          .map((st) => `<option ${(existing?.status || 'Quoted') === st ? 'selected' : ''}>${st}</option>`)
+          .join('')}
+      </select>
+
+      <label>Site / Task Photos</label>
+      <input type="file" accept="image/*" multiple onchange="handleTaskPhotoInput(this)">
+      <div id="taskPhotoThumbs" class="thumbs"></div>
+
+      <button type="submit" class="w">${existing ? 'Save Task Changes' : 'Create Task & Quotation PDF'}</button>
+    </form>
+  `);
+
+  renderTaskPhotoThumbs();
+}
+
+async function handleTaskPhotoInput(input) {
+  const files = Array.from(input.files || []);
+  for (const file of files) {
+    try {
+      const dataUrl = await fileData(file);
+      pendingTaskPhotos.push(dataUrl);
+    } catch (e) {
+      toast('Could not load photo: ' + e.message);
+    }
+  }
+  input.value = '';
+  renderTaskPhotoThumbs();
+}
+
+function renderTaskPhotoThumbs() {
+  const box = $('#taskPhotoThumbs');
+  if (!box) return;
+  box.innerHTML = pendingTaskPhotos
+    .map(
+      (src, idx) =>
+        `<img src="${esc(src)}" alt="Task photo ${idx + 1}" title="Tap to remove" onclick="removeTaskPhoto(${idx})" style="cursor:pointer">`
+    )
+    .join('');
+}
+
+function removeTaskPhoto(idx) {
+  pendingTaskPhotos.splice(idx, 1);
+  renderTaskPhotoThumbs();
+}
+
+async function saveTask(existingTaskId = '') {
+  const f = formData('taskForm');
+  const customer = await get('customers', f.customerId);
+  if (!customer) return toast('Please select a customer');
+
+  const old = existingTaskId ? await get('jobs', existingTaskId) : null;
+  const seqDigits = old
+    ? extractSeqDigits(old.ref)
+    : await allocateTaskSequenceNumber();
+  const taskRef = formatDocRef('tsk', seqDigits);
+  const quoteRef = formatDocRef('quo', seqDigits);
+
+  const linesText = (f.quoteLines || '').trim();
+  const parsedItems = parseQuoteLines(linesText);
+  const items = parsedItems.length
+    ? parsedItems
+    : [{ description: (f.description || f.task || 'Agreed task').trim(), amount: Number(old?.amount) || 0 }];
+  const total = sumQuoteLines(items);
+
+  const taskRecord = {
+    ...(old || {}),
+    id: old?.id || uid(),
+    ref: taskRef,
+    seqCode: seqDigits,
+    customerId: customer.id,
+    customerName: customer.name,
+    customerAddress: customer.address || '',
+    task: f.task || 'General / Bespoke Task',
+    description: (f.description || '').trim(),
+    quoteLinesText:
+      linesText || items.map((it) => `${it.description} | ${Number(it.amount) || 0}`).join('\n'),
+    amount: total,
+    scheduledDate: f.scheduledDate || '',
+    status: f.status || 'Quoted',
+    paymentStatus: old?.paymentStatus || 'Not paid',
+    photos: [...pendingTaskPhotos],
+    created: old?.created || Date.now(),
+    updatedAt: Date.now()
+  };
+
+  await put('jobs', taskRecord);
+
+  // Sync or create linked quotation with matching reference number (e.g. DKHS-quo-001)
+  const existingQuotes = (await all('quotes')).filter((q) => q.jobId === taskRecord.id);
+  const existingQuote = existingQuotes[0] || null;
+
+  const quoteRecord = {
+    ...(existingQuote || {}),
+    id: existingQuote?.id || uid(),
+    jobId: taskRecord.id,
+    jobRef: taskRef,
+    seqCode: seqDigits,
+    documentNumber: quoteRef,
+    customerId: customer.id,
+    customerName: customer.name,
+    customerAddress: customer.address || '',
+    customerPhone: customer.phone || '',
+    customerEmail: customer.email || '',
+    items,
+    total,
+    createdDate: existingQuote?.createdDate || today(),
+    validUntil: existingQuote?.validUntil || '',
+    notes: existingQuote?.notes ?? taskRecord.description,
+    status: existingQuote?.status || 'Draft',
+    created: existingQuote?.created || Date.now(),
+    updatedAt: Date.now()
+  };
+
+  const pdfBlob = await makeQuotationPdf(quoteRecord, taskRecord);
+  const filename = `${quoteRef}.pdf`;
+  quoteRecord.filename = filename;
+  quoteRecord.pdfData = await fileData(new File([pdfBlob], filename, { type: 'application/pdf' }));
+
+  if (isSupabaseConfigured()) {
+    try {
+      quoteRecord.pdfStorage = await uploadPdfToSupabase(
+        pdfBlob,
+        `quotations/${seqDigits}/${filename}`
+      );
+    } catch (upErr) {
+      console.warn('Quote PDF upload skipped:', upErr.message);
+    }
+  }
+
+  await put('quotes', quoteRecord);
+  closeModal();
+  toast(old ? `Updated ${taskRef} & ${quoteRef}` : `Created ${taskRef} & ${quoteRef}`);
+  await renderTasksPage();
+}
+
+async function openQuoteEditor(taskId) {
+  const task = await get('jobs', taskId);
+  if (!task) return toast('Task not found');
+  const customer = task.customerId ? await get('customers', task.customerId) : null;
+  const existingQuotes = (await all('quotes')).filter((q) => q.jobId === taskId);
+  const q = existingQuotes[0] || null;
+  const seqDigits = extractSeqDigits(q?.documentNumber || task.ref);
+  const quoteRef = formatDocRef('quo', seqDigits);
+  const taskRef = formatDocRef('tsk', seqDigits);
+
+  const itemsText = q?.items?.length
+    ? q.items.map((it) => `${it.description} | ${Number(it.amount) || 0}`).join('\n')
+    : task.quoteLinesText || `${task.description || task.task || 'Agreed task'} | ${Number(task.amount) || 0}`;
+
+  modal(`
+    <h2>Quotation (${esc(quoteRef)})</h2>
+    <p class="m">Task: <b>${esc(taskRef)}</b> - Client: <b>${esc(task.customerName)}</b></p>
+    <form id="quoteForm" onsubmit="event.preventDefault();saveQuoteFromModal('${esc(task.id)}', '${esc(q?.id || '')}')">
+      <label>Quotation Reference</label>
+      <input name="docNumber" value="${esc(quoteRef)}" readonly>
+
+      <label>Line Items (one per line: description | amount)</label>
+      <textarea name="items" required>${esc(itemsText)}</textarea>
+
+      <label>Quotation Date</label>
+      <input name="createdDate" type="date" value="${esc(q?.createdDate || today())}" required>
+
+      <label>Valid Until (Optional)</label>
+      <input name="validUntil" type="date" value="${esc(q?.validUntil || '')}">
+
+      <label>Quotation Status</label>
+      <select name="status">
+        ${['Draft', 'Sent', 'Accepted', 'Declined']
+          .map((st) => `<option ${(q?.status || 'Draft') === st ? 'selected' : ''}>${st}</option>`)
+          .join('')}
+      </select>
+
+      <label>Scope, Notes &amp; Exclusions</label>
+      <textarea name="notes">${esc(q?.notes ?? task.description ?? '')}</textarea>
 
       <button type="submit" class="w">Save Quotation &amp; Generate PDF</button>
     </form>
   `);
 }
 
-async function saveQuote(taskId, quoteId = '') {
+async function saveQuoteFromModal(taskId, existingQuoteId = '') {
   const f = formData('quoteForm');
-  const items = parseLineItems(f.items);
+  const items = parseQuoteLines(f.items);
   if (!items.length) return toast('Add at least one line item');
 
   const task = await get('jobs', taskId);
   if (!task) return toast('Task not found');
   const customer = task.customerId ? await get('customers', task.customerId) : null;
-  const old = quoteId ? await get('quotes', quoteId) : null;
+  const old = existingQuoteId ? await get('quotes', existingQuoteId) : null;
+  const seqDigits = extractSeqDigits(old?.documentNumber || task.ref);
+  const quoteRef = formatDocRef('quo', seqDigits);
+  const taskRef = formatDocRef('tsk', seqDigits);
+  const total = sumQuoteLines(items);
 
-  const counterKey = 'quotes';
-  let counter = await get('counters', counterKey);
-  if (!old && !counter) counter = { id: counterKey, value: 0 };
-  if (!old) {
-    counter.value++;
-    await put('counters', counter);
-  }
-
-  const total = totalLineItems(items);
-  const docNum =
-    old?.documentNumber ||
-    `${buildBrandDocPrefix()}-Q-${new Date().getFullYear()}-${String(counter?.value || 1).padStart(4, '0')}`;
-
-  const record = {
+  const quoteRecord = {
     ...(old || {}),
     id: old?.id || uid(),
-    jobId: taskId,
-    jobRef: task.ref,
-    jobTask: task.task || '',
-    jobDescription: task.description || '',
-    kind: 'quote',
-    documentNumber: docNum,
+    jobId: task.id,
+    jobRef: taskRef,
+    seqCode: seqDigits,
+    documentNumber: quoteRef,
     customerId: task.customerId || '',
     customerName: task.customerName,
     customerAddress: task.customerAddress || customer?.address || '',
     customerPhone: customer?.phone || '',
     customerEmail: customer?.email || '',
-    itemsText: f.items,
     items,
-    notes: f.notes || '',
     total,
     createdDate: f.createdDate || today(),
     validUntil: f.validUntil || '',
+    notes: (f.notes || '').trim(),
     status: f.status || 'Draft',
     created: old?.created || Date.now(),
     updatedAt: Date.now()
   };
 
-  try {
-    const pdfBlob = await makeQuotePdf(record);
-    record.filename = `${record.documentNumber}_Quotation.pdf`;
-    record.pdfData = await fileData(new File([pdfBlob], record.filename, { type: 'application/pdf' }));
+  const pdfBlob = await makeQuotationPdf(quoteRecord, task);
+  const filename = `${quoteRef}.pdf`;
+  quoteRecord.filename = filename;
+  quoteRecord.pdfData = await fileData(new File([pdfBlob], filename, { type: 'application/pdf' }));
 
-    if (isSupabaseConfigured()) {
-      try {
-        record.pdfStorage = await uploadPdfToSupabase(
-          pdfBlob,
-          `quotes/${record.jobRef}/${record.filename}`
-        );
-      } catch (upErr) {
-        console.warn('Quote PDF cloud upload skipped:', upErr.message);
-      }
+  if (isSupabaseConfigured()) {
+    try {
+      quoteRecord.pdfStorage = await uploadPdfToSupabase(
+        pdfBlob,
+        `quotations/${seqDigits}/${filename}`
+      );
+    } catch (upErr) {
+      console.warn('Quote PDF upload skipped:', upErr.message);
     }
-
-    await put('quotes', record);
-
-    // Keep task agreed amount & status aligned with quotation
-    task.amount = total;
-    if (task.status === 'Enquiry') task.status = 'Quoted';
-    task.updatedAt = Date.now();
-    await put('jobs', task);
-
-    closeModal();
-    toast('Quotation saved and PDF generated');
-    switchTaskView('task', taskId);
-  } catch (e) {
-    console.error(e);
-    toast('Could not generate quotation PDF: ' + e.message);
   }
+
+  await put('quotes', quoteRecord);
+
+  task.amount = total;
+  task.quoteLinesText = items.map((it) => `${it.description} | ${Number(it.amount) || 0}`).join('\n');
+  task.updatedAt = Date.now();
+  await put('jobs', task);
+
+  closeModal();
+  toast(`Saved ${quoteRef} & generated PDF`);
+  await renderTasksPage();
 }
 
-async function makeQuotePdf(q) {
+async function makeQuotationPdf(q, taskObj = null) {
   const ctx = await createBrandedPdfDocument();
   const { pdf, font, bold, width: W, height: H, margin } = ctx;
+  const refBadge = pdfSafeText(q.documentNumber || formatDocRef('quo', q.jobRef));
+  const [ar, ag, ab] = hexToRgbTuple(brand.color || '#0f5c5c');
+  const accentCol = PDFLib.rgb(ar, ag, ab);
+  const inkCol = PDFLib.rgb(0.08, 0.14, 0.18);
+  const tintCol = PDFLib.rgb(0.96, 0.97, 0.98);
+
   let page = pdf.addPage([W, H]);
-  let y = drawStandardPdfHeader(ctx, page, 'QUOTATION', q.documentNumber || '');
+  let y = drawStandardPdfHeader(ctx, page, 'QUOTATION', refBadge);
 
   function ensureSpace(needed = 24) {
     if (y - needed < 68) {
       page = pdf.addPage([W, H]);
-      y = drawStandardPdfHeader(ctx, page, 'QUOTATION', q.documentNumber || '');
+      y = drawStandardPdfHeader(ctx, page, 'QUOTATION', refBadge);
     }
   }
 
-  function writeLine(text, size = 10, isBold = false, indent = 0) {
-    const words = String(text || '').split(/\s+/).filter(Boolean);
-    if (!words.length) {
-      ensureSpace(size + 6);
-      y -= size + 6;
-      return;
-    }
-    const maxW = W - margin * 2 - indent;
-    let line = '';
-    for (const word of words) {
-      const test = line ? `${line} ${word}` : word;
-      if (font.widthOfTextAtSize(test, size) > maxW && line) {
-        ensureSpace(size + 6);
-        page.drawText(line, {
+  function writeLine(text, size = 9.5, isBold = false, indent = 0) {
+    const blocks = pdfSafeText(text || '').split('\n');
+    const maxW = W - margin * 2 - indent - 6;
+    for (const blk of blocks) {
+      const words = blk.trim().split(/\s+/).filter(Boolean);
+      if (!words.length) {
+        ensureSpace(size + 5);
+        y -= size + 5;
+        continue;
+      }
+      let line = '';
+      for (const w of words) {
+        const test = line ? `${line} ${w}` : w;
+        if (font.widthOfTextAtSize(pdfSafeText(test), size) > maxW && line) {
+          ensureSpace(size + 5);
+          page.drawText(pdfSafeText(line), {
+            x: margin + indent,
+            y,
+            size,
+            font: isBold ? bold : font,
+            color: inkCol
+          });
+          y -= size + 5;
+          line = w;
+        } else {
+          line = test;
+        }
+      }
+      if (line) {
+        ensureSpace(size + 5);
+        page.drawText(pdfSafeText(line), {
           x: margin + indent,
           y,
           size,
           font: isBold ? bold : font,
-          color: PDFLib.rgb(0.08, 0.14, 0.18)
+          color: inkCol
         });
-        y -= size + 6;
-        line = word;
-      } else {
-        line = test;
+        y -= size + 5;
       }
-    }
-    if (line) {
-      ensureSpace(size + 6);
-      page.drawText(line, {
-        x: margin + indent,
-        y,
-        size,
-        font: isBold ? bold : font,
-        color: PDFLib.rgb(0.08, 0.14, 0.18)
-      });
-      y -= size + 6;
     }
   }
 
   function sectionHeading(title) {
     ensureSpace(28);
     y -= 6;
-    page.drawText(title.toUpperCase(), {
+    page.drawRectangle({
       x: margin,
-      y,
+      y: y - 3,
+      width: W - margin * 2,
+      height: 17,
+      color: tintCol
+    });
+    page.drawText(pdfSafeText(String(title || '').toUpperCase()), {
+      x: margin + 6,
+      y: y + 1,
       size: 9.5,
       font: bold,
-      color: PDFLib.rgb(...hexToRgbTuple(brand.color || '#0f5c5c'))
+      color: accentCol
     });
-    y -= 16;
+    y -= 18;
   }
 
   sectionHeading('Customer & Task Details');
   writeLine(q.customerName || '', 11, true);
   if (q.customerAddress) writeLine(q.customerAddress.replace(/\n/g, ', '), 9.5);
   if (q.customerPhone || q.customerEmail) {
-    writeLine([q.customerPhone, q.customerEmail].filter(Boolean).join(' · '), 9);
+    writeLine([q.customerPhone, q.customerEmail].filter(Boolean).join(' - '), 9);
   }
-  writeLine(`Task Reference: ${q.jobRef || ''}`, 9.5, true);
-  writeLine(`Quotation Date: ${dateFmt(q.createdDate || '')} · Status: ${q.status || 'Draft'}`, 9.5);
-  if (q.validUntil) writeLine(`Valid Until: ${dateFmt(q.validUntil)}`, 9.5);
+  const tRef = formatDocRef('tsk', q.jobRef || q.documentNumber);
+  writeLine(`Task Reference: ${tRef} - Quotation Reference: ${refBadge}`, 9.5, true);
+  writeLine(
+    `Quotation Date: ${dateFmt(q.createdDate || '')} - Status: ${q.status || 'Draft'}${q.validUntil ? ` - Valid Until: ${dateFmt(q.validUntil)}` : ''}`,
+    9
+  );
+  if (taskObj?.scheduledDate) {
+    writeLine(`Planned Start of Work: ${dateFmt(taskObj.scheduledDate)}`, 9);
+  }
 
   sectionHeading('Quoted Line Items');
   for (const item of q.items || []) {
-    writeLine(`${item.description} — ${GBP(item.amount)}`, 10, false, 4);
+    writeLine(`${item.description} - ${GBP(item.amount)}`, 10, false, 4);
   }
 
-  ensureSpace(34);
+  ensureSpace(32);
   y -= 6;
   page.drawLine({
     start: { x: margin, y: y + 10 },
@@ -610,12 +564,12 @@ async function makeQuotePdf(q) {
     thickness: 1,
     color: PDFLib.rgb(0.75, 0.8, 0.83)
   });
-  page.drawText(`TOTAL: ${GBP(q.total)}`, {
+  page.drawText(pdfSafeText(`TOTAL: ${GBP(q.total)}`), {
     x: margin,
     y,
     size: 13,
     font: bold,
-    color: PDFLib.rgb(0.08, 0.14, 0.18)
+    color: inkCol
   });
   y -= 24;
 
@@ -624,80 +578,79 @@ async function makeQuotePdf(q) {
     writeLine(q.notes, 9.5);
   }
 
-  applyStandardPdfFooters(ctx, 'Quotation Record');
+  applyStandardPdfFooters(ctx, `Quotation ${refBadge}`);
   return new Blob([await pdf.save()], { type: 'application/pdf' });
 }
 
-async function resolveQuotePdfBlob(q) {
+async function resolveQuoteBlob(q) {
   if (q.pdfData) {
     return await fetch(q.pdfData).then((r) => r.blob());
   }
   if (q.pdfStorage) {
-    const remoteBlob = await fetchPdfBlobFromSupabase(q.pdfStorage);
-    if (remoteBlob) return remoteBlob;
+    const remote = await fetchPdfBlobFromSupabase(q.pdfStorage);
+    if (remote) return remote;
   }
-  return await makeQuotePdf(q);
+  const task = q.jobId ? await get('jobs', q.jobId) : null;
+  return await makeQuotationPdf(q, task);
 }
 
-async function openQuotePdf(quoteId) {
+async function viewQuotePdfById(quoteId) {
   const win = window.open('about:blank', '_blank');
   try {
     const q = await get('quotes', quoteId);
     if (!q) throw new Error('Quotation not found');
-    const blob = await resolveQuotePdfBlob(q);
+    const blob = await resolveQuoteBlob(q);
     presentPdf(blob, q.filename || `${q.documentNumber || 'Quotation'}.pdf`, win);
   } catch (e) {
     if (win) win.close();
-    toast('Could not open PDF: ' + e.message);
+    toast('Could not open quotation PDF: ' + e.message);
   }
 }
 
-async function shareQuotePdf(quoteId) {
+async function shareQuotePdfById(quoteId) {
   try {
     const q = await get('quotes', quoteId);
     if (!q) throw new Error('Quotation not found');
-    const blob = await resolveQuotePdfBlob(q);
+    const blob = await resolveQuoteBlob(q);
     await shareOrDownloadFile(
       blob,
       q.filename || `${q.documentNumber || 'Quotation'}.pdf`,
-      `Quotation ${q.documentNumber || q.jobRef}`
+      `Quotation ${q.documentNumber || ''}`
     );
   } catch (e) {
-    toast('Could not share PDF: ' + e.message);
+    toast('Could not share quotation PDF: ' + e.message);
   }
 }
 
-function confirmDeleteQuote(quoteId, taskId) {
+function confirmDeleteTask(taskId) {
   modal(`
-    <h2>Delete Quotation?</h2>
-    <p class="m">Remove this quotation record? The task itself will remain.</p>
-    <button type="button" class="danger w" onclick="deleteQuote('${esc(quoteId)}','${esc(taskId)}')">Yes, Delete Quotation</button>
+    <h2>Delete Task?</h2>
+    <p class="m">Delete this task and its linked quotation, and reduce the task reference counter by 1?</p>
+    <button type="button" class="danger w" onclick="deleteTask('${esc(taskId)}')">Yes, Delete Task &amp; Decrement Counter</button>
   `);
 }
 
-async function deleteQuote(quoteId, taskId) {
-  await del('quotes', quoteId);
+async function deleteTask(taskId) {
+  const quotes = (await all('quotes')).filter((q) => q.jobId === taskId);
+  for (const q of quotes) {
+    await del('quotes', q.id);
+  }
+  await del('jobs', taskId);
+  await decrementTaskSequenceNumber();
   closeModal();
-  toast('Quotation deleted');
-  switchTaskView('task', taskId);
+  toast('Task deleted & counter reduced by 1');
+  await renderTasksPage();
 }
 
 (async () => {
   try {
     const { params } = await initCore('tasks');
-    if (params.view === 'task' && params.id) {
-      taskState.view = 'task';
-      taskState.id = params.id;
-    } else if (params.filter) {
-      taskState.filter = params.filter;
-    }
-
     await renderTasksPage();
 
     if (params.action === 'new') {
       const custId = params.customerId || '';
       clearQueryParams();
-      await taskForm(custId);
+      await openTaskForm('', custId);
     }
   } catch (e) {
     console.error('Tasks boot error:', e);
