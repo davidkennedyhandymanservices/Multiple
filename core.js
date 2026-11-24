@@ -62,7 +62,7 @@ let supabaseConfig = { ...DEFAULT_SUPABASE };
 let syncInProgress = false;
 
 // ============================================================================
-// 2. DOM, FORMATTING, REFERENCE NUMBER & FILE UTILITIES
+// 2. DOM, FORMATTING, REFERENCE & FILE UTILITIES
 // ============================================================================
 const $ = (selector, root = document) => root.querySelector(selector);
 const $$ = (selector, root = document) => Array.from(root.querySelectorAll(selector));
@@ -92,8 +92,8 @@ const dateFmt = (d) =>
   d ? new Date(d + 'T12:00:00').toLocaleDateString('en-GB') : '';
 
 /**
- * Extracts the shared numeric/core reference code (e.g. "121" from "121", "quo121", or "TSK-121")
- * and formats it with the requested document prefix ("quo", "con", "qa", "inv", "tsk").
+ * Extracts the shared numeric/core reference code (e.g. "121" from "121", "quo121",
+ * "con121", "qa121", "inv121", or "TSK-121") so all documents share one number.
  */
 function extractRefCode(rawRef) {
   const s = String(rawRef || '').trim();
@@ -108,9 +108,14 @@ function formatDocRef(prefix, rawRef) {
   return `${String(prefix || '').toLowerCase()}${code}`;
 }
 
+function formatTaskRef(rawRef) {
+  const code = extractRefCode(rawRef);
+  return `TSK-${code}`;
+}
+
 /**
  * Sanitises strings for PDFLib StandardFonts (WinAnsi / Windows-1252) so characters
- * like ✓, em-dashes, or smart quotes never throw encoding errors.
+ * such as checkmarks, em-dashes, or smart quotes never throw encoding errors.
  */
 function pdfSafeText(str) {
   return String(str ?? '')
@@ -400,6 +405,7 @@ async function syncWithSupabase(options = { quiet: false }) {
       const localItems = await all(storeName);
       const localMap = new Map(localItems.map((item) => [String(item.id), item]));
 
+      // 1. Pull remote rows
       const getRes = await fetch(supabaseRestUrl(storeName, '?select=id,data,updated_at'), {
         headers: supabaseHeaders()
       });
@@ -427,6 +433,7 @@ async function syncWithSupabase(options = { quiet: false }) {
         }
       }
 
+      // 2. Push local-only or newer local records
       for (const localRec of localItems) {
         if (!localRec || !localRec.id) continue;
         const localTs = Number(localRec.updatedAt || localRec.created || Date.now());
@@ -560,10 +567,10 @@ function openWorkspaceMenu(activeSection = '') {
   const items = [
     { id: 'home', step: '1', label: 'Home Overview', sub: 'Dashboard & recent tasks', href: APP_CONFIG.pages.home },
     { id: 'customers', step: '2', label: 'Customers', sub: 'Register & manage clients', href: APP_CONFIG.pages.customers },
-    { id: 'tasks', step: '3', label: 'Tasks & Quotations', sub: 'Assign tasks & build quotes', href: APP_CONFIG.pages.tasks },
-    { id: 'legal', step: '4', label: 'Legal Contracts', sub: 'Contracts from task & quote', href: APP_CONFIG.pages.legal },
-    { id: 'qa', step: '5', label: 'QA Assessments', sub: 'Quality checks & sign-off', href: APP_CONFIG.pages.qa },
-    { id: 'invoices', step: '6', label: 'Invoices', sub: 'Billing & payment tracking', href: APP_CONFIG.pages.invoices },
+    { id: 'tasks', step: '3', label: 'Tasks & Quotations', sub: 'Assign tasks & build quotes (quo...)', href: APP_CONFIG.pages.tasks },
+    { id: 'legal', step: '4', label: 'Legal Contracts', sub: 'Contracts from task & quote (con...)', href: APP_CONFIG.pages.legal },
+    { id: 'qa', step: '5', label: 'QA Assessments', sub: 'Quality checks & sign-off (qa...)', href: APP_CONFIG.pages.qa },
+    { id: 'invoices', step: '6', label: 'Invoices', sub: 'Billing & payment tracking (inv...)', href: APP_CONFIG.pages.invoices },
     { id: 'peripherals', step: '7', label: 'Peripherals', sub: 'Branding, Supabase & backup', href: APP_CONFIG.pages.peripherals }
   ];
 
@@ -628,30 +635,23 @@ function renderAppShell(activeSection) {
   }
 
   const navItems = [
-    { id: 'home', label: 'Home', href: APP_CONFIG.pages.home },
-    { id: 'tasks', label: 'Tasks & Quotes', href: APP_CONFIG.pages.tasks },
-    { id: 'qa', label: 'QA & Legal', href: APP_CONFIG.pages.qa },
-    { id: 'workspace', label: 'Workspace', action: `openWorkspaceMenu('${activeSection}')` }
+    {
+      id: 'workspace',
+      label: 'Workspace',
+      action: `openWorkspaceMenu('${activeSection}')`
+    }
   ];
 
   nav.innerHTML = navItems
-    .map((item) => {
-      const isOn =
-        activeSection === item.id ||
-        (item.id === 'qa' && activeSection === 'legal') ||
-        (item.id === 'workspace' &&
-          ['customers', 'invoices', 'peripherals'].includes(activeSection));
-      const clickHandler = item.action
-        ? item.action
-        : `navigateTo('${item.href}')`;
-      return `
+    .map(
+      (item) => `
         <button
           type="button"
           data-section="${item.id}"
-          class="${isOn ? 'on' : ''}"
-          onclick="${clickHandler}"
-        >${esc(item.label)}</button>`;
-    })
+          class="on"
+          onclick="${item.action}"
+        >${esc(item.label)}</button>`
+    )
     .join('');
 
   updateSyncBadge();
@@ -676,6 +676,10 @@ function hexToRgbTuple(hex) {
   ];
 }
 
+/**
+ * Creates a standard A4 PDFLib document with shared fonts and embedded logo
+ * so quotations, contracts, QA reports, and invoices share a consistent look.
+ */
 async function createBrandedPdfDocument() {
   await loadScript('https://cdnjs.cloudflare.com/ajax/libs/pdf-lib/1.17.1/pdf-lib.min.js');
   const pdf = await PDFLib.PDFDocument.create();
@@ -707,6 +711,9 @@ async function createBrandedPdfDocument() {
   };
 }
 
+/**
+ * Draws the shared top banner and right-hand document badge on a PDF page.
+ */
 function drawStandardPdfHeader(docCtx, page, docTitle = 'DOCUMENT', docRef = '') {
   const { width: W, height: H, margin, headerHeight, font, bold, logo } = docCtx;
   const [r, g, b] = hexToRgbTuple(brand.color || '#0f5c5c');
@@ -788,6 +795,9 @@ function drawStandardPdfHeader(docCtx, page, docTitle = 'DOCUMENT', docRef = '')
   return H - headerHeight - 24;
 }
 
+/**
+ * Draws a consistent footer and "Page X of Y" across every page in a PDFDocument.
+ */
 function applyStandardPdfFooters(docCtx, extraFooterNote = '') {
   const { pdf, width: W, height: H, margin, font } = docCtx;
   const pages = pdf.getPages();
