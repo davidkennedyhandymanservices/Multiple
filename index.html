@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="theme-color" content="#0f5c5c">
-<title>Handyman Manager · Home</title>
+<title>Handyman Manager - Overview</title>
 <style>
 :root{--ink:#14232f;--bg:#e9edef;--card:#fff;--ac:#0f5c5c;--tape:#f2c230;--mut:#5b6b76;--bad:#b3261e;--ok:#1b7a43;--ln:#cfd7dc}
 *{box-sizing:border-box}
@@ -15,42 +15,32 @@ header .brand-wrap{display:flex;align-items:center;gap:10px;min-width:0}
 header img.hdr-logo{width:38px;height:38px;object-fit:contain;background:white;border-radius:7px;padding:2px;flex-shrink:0}
 header b{font-size:17px;display:block;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 header small{display:block;opacity:.88;font-size:12px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.sync-pill{font-size:11px;font-weight:700;padding:4px 9px;border-radius:999px;background:rgba(255,255,255,.16);color:white;white-space:nowrap;flex-shrink:0}
+.sync-pill{font-size:11px;font-weight:700;padding:4px 9px;border-radius:999px;background:rgba(255,255,255,.16);color:white;white-space:nowrap;flex-shrink:0;cursor:pointer}
 .sync-pill.online{background:#1b7a43}
 main{max-width:780px;margin:auto;padding:14px}
 .c{background:var(--card);border:1px solid var(--ln);border-radius:12px;padding:14px;margin-bottom:12px;box-shadow:0 1px 2px rgba(20,35,47,.04)}
 h2,h3{margin:0 0 8px}
 .m{color:var(--mut);font-size:14px}
 .small{font-size:12px;color:var(--mut)}
+.grid{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+@media(max-width:460px){.grid{grid-template-columns:1fr}}
+.stat{border:1px solid var(--ln);border-radius:10px;padding:12px;background:#fafbfc}
+.stat b{display:block;font-size:21px;color:var(--ac)}
 button{font:inherit;min-height:46px;padding:8px 14px;border:0;border-radius:8px;background:var(--ac);color:white;font-weight:650;margin:3px 3px 3px 0;cursor:pointer}
 button.secondary{background:white;color:var(--ac);border:2px solid var(--ac)}
 button.w{width:100%}
-.grid-stats{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px;margin-bottom:12px}
-@media(min-width:560px){.grid-stats{grid-template-columns:repeat(4,minmax(0,1fr))}}
-.stat-card{background:var(--card);border:1px solid var(--ln);border-radius:12px;padding:13px;cursor:pointer;transition:transform .1s ease}
-.stat-card:active{transform:scale(.98)}
-.stat-card .n{font-size:25px;font-weight:800;color:var(--ink);line-height:1.15}
-.stat-card .lbl{font-size:13px;color:var(--mut);margin-top:4px;font-weight:600}
-.workflow-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}
-@media(min-width:560px){.workflow-grid{grid-template-columns:repeat(3,minmax(0,1fr))}}
-.wf-tile{background:#f8fafb;border:1.5px solid var(--ln);border-radius:10px;padding:12px;text-align:left;cursor:pointer;display:flex;flex-direction:column;justify-content:space-between;min-height:92px;transition:border-color .15s ease,transform .1s ease}
-.wf-tile:hover{border-color:var(--ac)}
-.wf-tile:active{transform:scale(.98)}
-.wf-step{display:inline-block;background:var(--tape);color:#111;font-size:11px;font-weight:800;padding:2px 7px;border-radius:5px;margin-bottom:6px;width:fit-content}
-.wf-title{font-weight:750;font-size:15px;color:var(--ink)}
-.wf-sub{font-size:12px;color:var(--mut);margin-top:2px}
-.row{display:flex;justify-content:space-between;gap:10px;padding:10px 0;border-bottom:1px solid var(--ln);align-items:center;cursor:pointer}
+.row{display:flex;justify-content:space-between;gap:10px;padding:10px 0;border-bottom:1px solid var(--ln);align-items:center}
 .row:last-child{border:0;padding-bottom:0}
 .tag{background:var(--tape);color:#111;border-radius:6px;padding:3px 8px;font-size:12px;font-weight:700;white-space:nowrap}
 .tag.ok{background:#dcfce7;color:#166534}
-.tag.bad{background:#fee2e2;color:#991b1b}
-.quick-pills{display:flex;gap:6px;flex-wrap:wrap;margin-top:6px}
-.quick-pills button{min-height:34px;padding:4px 10px;font-size:12px;margin:0}
+.quick-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:8px}
+@media(max-width:520px){.quick-grid{grid-template-columns:1fr}}
+.quick-grid button{margin:0;text-align:left}
 nav{position:fixed;bottom:0;left:0;right:0;display:flex;background:white;border-top:1px solid var(--ln);padding-bottom:env(safe-area-inset-bottom);z-index:6}
 nav button{flex:1;background:none;color:var(--mut);border-radius:0;margin:0;min-height:58px;font-size:12px;padding:4px}
 nav button.on{color:var(--ac);box-shadow:inset 0 3px var(--tape);font-weight:700}
 #toast{position:fixed;left:50%;transform:translateX(-50%);bottom:88px;background:#14232f;color:white;padding:10px 15px;border-radius:8px;display:none;z-index:10;max-width:90%;text-align:center}
-dialog{width:min(650px,96%);max-height:92vh;border:0;border-radius:14px;padding:16px;overflow:auto}
+dialog{width:min(540px,96%);max-height:92vh;border:0;border-radius:14px;padding:16px;overflow:auto}
 dialog::backdrop{background:#0008}
 </style>
 </head>
@@ -62,146 +52,85 @@ dialog::backdrop{background:#0008}
 "use strict";
 
 async function renderHome() {
-  const [customers, jobs, quotes, docs, qaReports, invoices] = await Promise.all([
+  const [customers, tasks, quotes, invoices] = await Promise.all([
     all('customers'),
     all('jobs'),
     all('quotes'),
-    all('docs'),
-    all('qaReports'),
     all('invoices')
   ]);
 
-  const activeTasks = jobs.filter((j) => !['Completed', 'Cancelled'].includes(j.status));
-  const unpaidInvoices = invoices.filter((inv) =>
-    ['Not paid', 'To be paid', 'Part-paid'].includes(inv.status)
-  );
-  const outstandingTotal = unpaidInvoices.reduce(
-    (sum, inv) => sum + (Number(inv.total) || 0),
-    0
-  );
+  const quoteByTask = new Map();
+  for (const q of [...quotes].sort((a, b) => (b.created || 0) - (a.created || 0))) {
+    if (!quoteByTask.has(q.jobId)) quoteByTask.set(q.jobId, q);
+  }
 
-  const recentTasks = [...jobs]
+  const invByTask = new Map();
+  for (const inv of [...invoices].sort((a, b) => (b.created || 0) - (a.created || 0))) {
+    if (!invByTask.has(inv.jobId)) invByTask.set(inv.jobId, inv);
+  }
+
+  const paidRevenue = invoices
+    .filter((inv) => inv.paymentStatus === 'Paid')
+    .reduce((sum, inv) => sum + (Number(inv.total) || 0), 0);
+
+  const openTasks = tasks.filter(
+    (t) => (invByTask.get(t.id)?.paymentStatus || t.paymentStatus) !== 'Paid'
+  ).length;
+
+  const recentTasks = [...tasks]
     .sort((a, b) => (b.created || 0) - (a.created || 0))
     .slice(0, 6);
 
   $('#view').innerHTML = `
     <div class="c">
       <h2>Business Overview</h2>
-      <p class="m" style="margin-bottom:10px">
-        Manage your end-to-end job workflow from customer registration through quotation, contract, QA verification, and final invoice.
-      </p>
-      <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
-        <button class="w" style="margin:0" onclick="navigateTo('customers.html', { action: 'new' })">+ Add Customer</button>
-        <button class="secondary w" style="margin:0" onclick="navigateTo('tasks.html', { action: 'new' })">+ New Task &amp; Quote</button>
+      <p class="m">Manage clients, tasks, quotations, contracts, QA assessments, invoices, and settings with shared reference numbering (<code>${esc(formatDocRef('quo', '001'))}</code>).</p>
+      <div class="grid">
+        <div class="stat"><b>${customers.length}</b><span class="small">Customers</span></div>
+        <div class="stat"><b>${tasks.length}</b><span class="small">Total Tasks</span></div>
+        <div class="stat"><b>${GBP(paidRevenue)}</b><span class="small">Paid Revenue</span></div>
+        <div class="stat"><b>${openTasks}</b><span class="small">Open / Unpaid Tasks</span></div>
       </div>
     </div>
 
-    <!-- Summary Metrics Grid -->
-    <div class="grid-stats">
-      <div class="stat-card" onclick="navigateTo('customers.html')">
-        <div class="n">${customers.length}</div>
-        <div class="lbl">Customers</div>
-      </div>
-      <div class="stat-card" onclick="navigateTo('tasks.html')">
-        <div class="n">${activeTasks.length}</div>
-        <div class="lbl">Active Tasks</div>
-      </div>
-      <div class="stat-card" onclick="navigateTo('qa.html')">
-        <div class="n">${qaReports.length}</div>
-        <div class="lbl">QA Reports</div>
-      </div>
-      <div class="stat-card" onclick="navigateTo('invoices.html')">
-        <div class="n">${GBP(outstandingTotal)}</div>
-        <div class="lbl">Unpaid (${unpaidInvoices.length})</div>
-      </div>
-    </div>
-
-    <!-- 7-Step Platform Workflow Grid -->
     <div class="c">
-      <h3>Workspace Modules</h3>
-      <p class="small" style="margin:0 0 10px">Select any stage below to create, edit, share, or review documents.</p>
-      <div class="workflow-grid">
-        <div class="wf-tile" onclick="navigateTo('customers.html')">
-          <span class="wf-step">STEP 2</span>
-          <div>
-            <div class="wf-title">Customers</div>
-            <div class="wf-sub">${customers.length} registered</div>
-          </div>
-        </div>
-
-        <div class="wf-tile" onclick="navigateTo('tasks.html')">
-          <span class="wf-step">STEP 3</span>
-          <div>
-            <div class="wf-title">Tasks &amp; Quotes</div>
-            <div class="wf-sub">${jobs.length} tasks · ${quotes.length} quotes</div>
-          </div>
-        </div>
-
-        <div class="wf-tile" onclick="navigateTo('legal.html')">
-          <span class="wf-step">STEP 4</span>
-          <div>
-            <div class="wf-title">Legal Contracts</div>
-            <div class="wf-sub">${docs.length} contracts</div>
-          </div>
-        </div>
-
-        <div class="wf-tile" onclick="navigateTo('qa.html')">
-          <span class="wf-step">STEP 5</span>
-          <div>
-            <div class="wf-title">QA Portal</div>
-            <div class="wf-sub">${qaReports.length} assessments</div>
-          </div>
-        </div>
-
-        <div class="wf-tile" onclick="navigateTo('invoices.html')">
-          <span class="wf-step">STEP 6</span>
-          <div>
-            <div class="wf-title">Invoices</div>
-            <div class="wf-sub">${invoices.length} issued</div>
-          </div>
-        </div>
-
-        <div class="wf-tile" onclick="navigateTo('peripherals.html')">
-          <span class="wf-step">STEP 7</span>
-          <div>
-            <div class="wf-title">Peripherals</div>
-            <div class="wf-sub">Branding &amp; Supabase</div>
-          </div>
-        </div>
+      <h3>Quick Actions</h3>
+      <div class="quick-grid">
+        <button type="button" onclick="navigateTo('tasks.html', { action: 'new' })">+ New Task &amp; Quote</button>
+        <button type="button" class="secondary" onclick="navigateTo('customers.html', { action: 'new' })">+ New Customer</button>
+        <button type="button" class="secondary" onclick="navigateTo('legal.html')">Legal Contracts</button>
+        <button type="button" class="secondary" onclick="navigateTo('qa.html')">QA Assessments</button>
+        <button type="button" class="secondary" onclick="navigateTo('invoices.html')">Invoices</button>
+        <button type="button" class="secondary" onclick="navigateTo('peripherals.html')">Peripherals &amp; Sync</button>
       </div>
     </div>
 
-    <!-- Recent Tasks & Quick Document Pipeline -->
     <div class="c">
-      <h3>Recent Tasks &amp; Document Pipeline</h3>
+      <h3>Recent Tasks</h3>
       ${
         recentTasks.length
           ? recentTasks
-              .map((j) => {
-                const jobQuote = quotes.find((q) => q.jobId === j.id);
-                const statusClass =
-                  j.status === 'Completed' ? 'ok' : j.status === 'Cancelled' ? 'bad' : '';
+              .map((t) => {
+                const q = quoteByTask.get(t.id);
+                const inv = invByTask.get(t.id);
+                const baseRef = q?.documentNumber || inv?.documentNumber || t.ref;
+                const tRef = formatDocRef('tsk', baseRef);
+                const qRef = formatDocRef('quo', baseRef);
+                const payStatus = inv?.paymentStatus || t.paymentStatus || 'Unpaid';
+                const amt = inv ? inv.total : q ? q.total : t.amount;
+                const isPaid = payStatus === 'Paid';
                 return `
-                  <div class="row" style="flex-direction:column;align-items:stretch;cursor:default">
-                    <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:8px;cursor:pointer"
-                         onclick="navigateTo('tasks.html', { view: 'task', id: '${esc(j.id)}' })">
-                      <div>
-                        <b>${esc(j.ref)} · ${esc(j.customerName)}</b>
-                        <div class="m">${esc(j.task || j.description)}</div>
-                        <div class="small">${jobQuote ? `Quote: ${esc(jobQuote.documentNumber)} (${GBP(jobQuote.total)})` : `Agreed: ${GBP(j.amount)}`}</div>
-                      </div>
-                      <span class="tag ${statusClass}">${esc(j.status)}</span>
+                  <div class="row">
+                    <div>
+                      <b>${esc(tRef)} - ${esc(t.customerName)}</b>
+                      <div class="m">${esc(t.task || 'Task')} - ${esc(t.description || '')}</div>
+                      <div class="small">Quote: ${esc(qRef)} - ${GBP(amt)}</div>
                     </div>
-                    <div class="quick-pills">
-                      <button type="button" class="secondary" onclick="navigateTo('tasks.html', { view: 'task', id: '${esc(j.id)}' })">Quote</button>
-                      <button type="button" class="secondary" onclick="navigateTo('legal.html', { taskId: '${esc(j.id)}' })">Contract</button>
-                      <button type="button" class="secondary" onclick="navigateTo('qa.html', { taskId: '${esc(j.id)}' })">QA</button>
-                      <button type="button" class="secondary" onclick="navigateTo('invoices.html', { taskId: '${esc(j.id)}' })">Invoice</button>
-                    </div>
+                    <span class="tag ${isPaid ? 'ok' : ''}">${esc(payStatus)}</span>
                   </div>`;
               })
               .join('')
-          : `<p class="m">No tasks recorded yet. Start by adding a customer, then assign a task and create a quotation.</p>`
+          : '<p class="m">No tasks yet. Tap "+ New Task &amp; Quote" above to create your first task.</p>'
       }
     </div>
   `;
