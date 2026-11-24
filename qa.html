@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="theme-color" content="#0f5c5c">
-<title>Handyman Manager · Quality Assurance</title>
+<title>Handyman Manager - QA Assessments</title>
 <style>
 :root{--ink:#14232f;--bg:#e9edef;--card:#fff;--ac:#0f5c5c;--tape:#f2c230;--mut:#5b6b76;--bad:#b3261e;--ok:#1b7a43;--ln:#cfd7dc}
 *{box-sizing:border-box}
@@ -33,18 +33,16 @@ label{font-weight:650;font-size:14px;display:block}
 .row:last-child{border:0;padding-bottom:0}
 .tag{background:var(--tape);color:#111;border-radius:6px;padding:3px 8px;font-size:12px;font-weight:700;white-space:nowrap}
 .tag.ok{background:#dcfce7;color:#166534}
-.tag.bad{background:#fee2e2;color:#991b1b}
 .doc-card{border:1px solid var(--ln);border-radius:10px;padding:11px;margin:10px 0;background:#fafbfc}
 .doc-actions{display:flex;gap:6px;flex-wrap:wrap;margin-top:8px}
-.std-strip{display:flex;gap:6px;flex-wrap:wrap;margin:8px 0 12px}
-.std-chip{background:#eef4f4;color:var(--ac);border:1px solid #c3d5d5;border-radius:999px;padding:4px 10px;font-size:12px;font-weight:700}
-.qa-item{border:1px solid var(--ln);border-radius:10px;padding:12px;margin:10px 0;background:#fafbfc}
-.status-pills{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:6px;margin:8px 0}
-.pill-btn{min-height:40px;margin:0;padding:6px 8px;border-radius:8px;border:1.5px solid #9aa8b0;background:white;color:var(--ink);font-weight:700;font-size:13px}
-.pill-btn.active-pass{background:#1b7a43;border-color:#1b7a43;color:white}
-.pill-btn.active-fail{background:#b3261e;border-color:#b3261e;color:white}
-.pill-btn.active-na{background:#5b6b76;border-color:#5b6b76;color:white}
-.photo-thumb{max-width:100%;max-height:170px;border-radius:8px;border:1px solid var(--ln);margin-top:6px;display:block}
+.std-list{display:flex;gap:6px;flex-wrap:wrap;margin:6px 0 12px}
+.std-badge{background:#eef4f4;color:var(--ac);border:1px solid #c3d5d5;border-radius:999px;padding:4px 10px;font-size:12px;font-weight:700}
+.check-card{border:1px solid var(--ln);border-radius:10px;padding:11px;margin:10px 0;background:#fbfcfd}
+.status-group{display:flex;gap:6px;flex-wrap:wrap;margin:6px 0 10px}
+.status-pill-btn{min-height:38px;padding:6px 12px;font-size:13px;border-radius:999px;border:1.5px solid var(--ac);background:white;color:var(--ac)}
+.status-pill-btn.active{background:var(--ac);color:white}
+.thumbs{display:flex;gap:8px;flex-wrap:wrap;margin:8px 0}
+.thumbs img{width:76px;height:76px;object-fit:cover;border-radius:8px;border:1px solid var(--ln)}
 canvas.signature{width:100%;height:130px;border:2px dashed #9aa8b0;border-radius:8px;touch-action:none;background:#fff}
 nav{position:fixed;bottom:0;left:0;right:0;display:flex;background:white;border-top:1px solid var(--ln);padding-bottom:env(safe-area-inset-bottom);z-index:6}
 nav button{flex:1;background:none;color:var(--mut);border-radius:0;margin:0;min-height:58px;font-size:12px;padding:4px}
@@ -61,198 +59,86 @@ dialog::backdrop{background:#0008}
 <script>
 "use strict";
 
-const QA_PROFILES = {
-  'Garden gate repair': {
-    standards: ['BS 8214 (Timber & joinery)', 'BS EN 12604 (Gate mechanical safety)', 'BS 7671 (Where electric/latch controls apply)'],
-    questions: [
-      'Gate posts, hinges, and latches are plumb, securely anchored, and free from rot or structural play.',
-      'Gate opens, closes, and self-latches smoothly without binding, sagging, or scraping the ground/path.',
-      'Finger-trap, crush, and pinch clearances meet safety expectations along hinge and closing edges.',
-      'Timber treatment, end-grain seal, or metal corrosion protection is applied to all cut/exposed surfaces.',
-      'Surrounding paving, turf, and property finishes are clean, undamaged, and clear of debris.'
-    ]
-  },
-  'Hanging shelves or hooks': {
-    standards: ['BS 8214 (Joinery & fixings)', 'BS 7671 (Safe zones away from cables)', 'BS EN 1991 (Applied load safety)'],
-    questions: [
-      'Wall substrate (masonry, stud, plasterboard) was checked and fixings/anchors match the expected load.',
-      'Safe zones were verified to avoid concealed electrical cables or water/gas pipes before drilling.',
-      'Shelves or hooks are level, aligned, and firmly seated with zero rock or pull-out movement.',
-      'Wall surface around brackets/fixings is neat with minimal breakout and tidy sealing/touch-up.',
-      'Area beneath installation is cleared, vacuumed, and handed back in clean condition.'
-    ]
-  },
-  'Replacing silicone sealant': {
-    standards: ['BS 8000-16 (Workmanship on site — sealing)', 'BS EN ISO 11600 (Sealants for building construction)', 'BS 7671 (Proximity to wet/electrical fittings)'],
-    questions: [
-      'Old sealant, mould, soap residue, and loose debris were completely removed and joint surfaces dried/cleaned.',
-      'Joint depth, backing rod/bond-breaker (where needed), and priming suit the substrate and movement.',
-      'Sanitary/mould-resistant or exterior grade sealant matches the environment and wet-zone exposure.',
-      'Bead profile is continuous, smooth, and properly tooled with no pinholes, gaps, or smear marks.',
-      'Curing guidance and water-free curing window were explained to the customer before handover.'
-    ]
-  },
-  'Flat-pack furniture assembly': {
-    standards: ['BS EN 12520 / BS EN 14749 (Domestic furniture safety)', 'BS 8214 (Joinery & assembly)', 'BS EN 1991 (Tip-over & stability restraint)'],
-    questions: [
-      'All panels, cam locks, dowels, runners, and hinges are assembled in sequence with no missing or damaged parts.',
-      'Drawers, doors, and sliding components align evenly, open smoothly, and close without rubbing.',
-      'Freestanding/tall furniture is fitted with appropriate anti-tip wall restraints suited to the wall type.',
-      'All fasteners, cams, and brackets are tightened securely without over-tightening or splitting.',
-      'Packaging, offcuts, and dust are cleared and customer shown any care/adjustment points.'
-    ]
-  },
-  'Painting and decorating': {
-    standards: ['BS 6150 (Painting of buildings — code of practice)', 'BS 8000-12 (Workmanship — decorative finishes)', 'BS EN 13300 (Water-borne coatings performance)'],
-    questions: [
-      'Surfaces were properly prepared (cleaned, degreased, sanded, filled, and spot-primed) for adhesion.',
-      'Correct primer, undercoat, and finish coat system was used for the substrate and room conditions.',
-      'Cut-ins along edges, skirting, architraves, and ceilings are sharp with minimal bleed or holidays.',
-      'Finish coat is uniform in sheen and colour with no runs, sags, brush/roller marks, or trapped debris.',
-      'Floors, fittings, and adjacent surfaces are clean and spare touch-up tin details noted if left on site.'
-    ]
-  },
-  'Minor plumbing repair': {
-    standards: ['BS EN 806 (Water supply installations)', 'BS 6700 (Building services engineering)', 'Water Supply (Water Fittings) Regulations 1999'],
-    questions: [
-      'Isolation valves, traps, washers, seals, or flexi-connectors were inspected and fitted without cross-threading.',
-      'System was pressure/flow tested with running water and joints checked for drips, weeps, or weeping.',
-      'Pipework, traps, and fittings are supported cleanly with no kinks, strain, or banging/water hammer.',
-      'Backflow prevention and water fittings compliance are maintained for the domestic water connection.',
-      'Surrounding cabinetry, floors, and finishes are dry, tidy, and customer shown isolation point.'
-    ]
-  },
-  'Door adjustment or repair': {
-    standards: ['BS 8214 (Timber-based doorsets & ironmongery)', 'BS EN 1935 (Single-axis hinges)', 'BS 9999 / Approved Document B (Where fire/escape doors apply)'],
-    questions: [
-      'Door leaf hangs plumb and square with consistent perimeter clearances and no binding on frame or floor.',
-      'Hinges, screws, latches, and keeps are securely fixed with full engagement and smooth operation.',
-      'Any planed or trimmed edges are sealed/primed appropriately to prevent moisture ingress.',
-      'Door closer, latch bolt, or security hardware operates reliably under normal closing force.',
-      'Surrounding frame, architrave, and floor are clean and free from marks or shavings.'
-    ]
-  },
-  'Curtain pole or blind installation': {
-    standards: ['BS 8214 (Fixings & joinery)', 'BS EN 13120 (Internal blinds — child safety & cord/chain devices)', 'BS 7671 (Safe zones away from cables)'],
-    questions: [
-      'Brackets are level, symmetrically spaced, and anchored securely into solid substrate or rated fixings.',
-      'Safe zones were checked before drilling to avoid concealed wiring or services.',
-      'Curtain pole/track or blind operates smoothly across full travel with end stops/brackets secured.',
-      'Child safety cord/chain tensioners or cleats are fitted and installed in accordance with BS EN 13120.',
-      'Work area is clean and customer shown safe operation of cords, chains, or blind mechanism.'
-    ]
-  },
-  'Tile or grout repair': {
-    standards: ['BS 5385 (Wall and floor tiling)', 'BS 8000-11 (Workmanship — ceramic, natural stone and terrazzo tiling)', 'BS EN 12004 / BS EN 13888 (Adhesives & grouts)'],
-    questions: [
-      'Loose, cracked, or hollow tiles and old/failing grout were removed and substrate prepared sound and clean.',
-      'Suitable tile adhesive and grout (including waterproof/anti-mould grade where wet) were used.',
-      'Replaced tiles sit flush with surrounding tiles with consistent joint lines and lippage control.',
-      'Grout joints are filled solid, smooth, and free of pinholes, cracks, or dried haze/residue.',
-      'Wet-area movement/perimeter joints are sealed cleanly and curing times communicated.'
-    ]
-  },
-  'Fence panel repair': {
-    standards: ['BS 1722 (Fences — specification)', 'BS 8214 (Timber preservation & fixings)', 'BS EN 1991 (Wind load & post stability)'],
-    questions: [
-      'Posts, gravel boards, arris rails, and fence panels are plumb, aligned, and firmly supported.',
-      'Fixings, clips, brackets, and post-mix/anchors are secure with no loose or rattling sections.',
-      'Cut timber ends and replacement components have suitable preservative or protective finish.',
-      'Boundary line and neighbouring property finishes/planting were respected without encroachment or damage.',
-      'Debris, old fixings, and excess material are cleared and site left safe and tidy.'
-    ]
-  },
-  'Lock or handle replacement': {
-    standards: ['BS 3621 / BS 8621 / BS 10621 (Lock security standards)', 'BS 8214 (Door hardware & mortising)', 'BS EN 1906 (Lever handles & knob furniture)'],
-    questions: [
-      'Mortise, latch/deadbolt, spindle, keep, and escutcheons align cleanly for smooth key/handle throw.',
-      'Security screws and fixings are tight with no play in handles, cylinders, or rose plates.',
-      'Door closes and locks reliably without forcing the handle or key.',
-      'All supplied keys were tested and handed over to the customer with operating check completed.',
-      'Door face, edge, and frame are neat and clean with no splintering or stray swarf.'
-    ]
-  },
-  'Gutter or downpipe minor repair': {
-    standards: ['BS EN 12056 (Gravity drainage systems inside buildings)', 'BS EN 607 (Eaves gutters & rainwater fittings)', 'BS 8000-13 (Workmanship — above-ground drainage)'],
-    questions: [
-      'Gutter runs, brackets, unions, stop-ends, and downpipe clips are secure and set to proper fall.',
-      'Gaskets/seals are seated correctly and joints/downpipe connections are clear of leaves and blockage.',
-      'Water flow test confirms no leaks, drips, or ponding at joints, angles, or outlets.',
-      'Fascia, soffit, and wall fixings remain sound with no split timber or pulled fixings.',
-      'Ground below gutters/downpipes is cleared of debris and work area left tidy.'
-    ]
-  },
-  'Picture or mirror hanging': {
-    standards: ['BS 8214 (Fixings & wall support)', 'BS 7671 (Safe zones away from cables)', 'BS EN 12150 / BS EN 1036 (Mirror safety & backing where applicable)'],
-    questions: [
-      'Fixings and hanging hardware match the weight, centre of gravity, and wall construction.',
-      'Safe zones were checked before drilling to avoid concealed cables or pipework.',
-      'Item hangs level, centred, and securely mounted with safety wire/cord/brackets engaged.',
-      'Heavy or full-length mirrors have secure bottom/side support to prevent slipping or tipping.',
-      'Wall surface is clean and area below is tidy and free of dust or debris.'
-    ]
-  },
-  'General maintenance': {
-    standards: ['BS 8214 (General joinery & fixings)', 'BS 7671 (Safe zones & electrical awareness)', 'BS EN 806 / BS 6150 (Applicable plumbing/finishing standards)'],
-    questions: [
-      'Work completed matches the agreed task scope and quotation with safe, sound fixings/finishes.',
-      'Concealed services and surrounding fixtures were respected throughout the task.',
-      'Moving parts, fittings, or hardware operate smoothly and safely upon completion.',
-      'Any remaining snag, follow-up item, or maintenance note is clearly recorded.',
-      'Work area is clean, safe, and ready for customer sign-off.'
-    ]
-  },
-  'Other / bespoke task': {
-    standards: ['BS 8214 (General joinery & site fixings)', 'BS 7671 (Safe zones & services awareness)', 'Task-specific British Standards'],
-    questions: [
-      'Bespoke task deliverables match the agreed quotation scope and customer instructions.',
-      'Materials, fixings, and methods used are fit for purpose and safely installed.',
-      'Adjacent surfaces, services, and property elements are undamaged and properly protected.',
-      'Functional/operational check completed with customer.',
-      'Site left clean, safe, and tidy upon completion.'
-    ]
-  }
+let qaDraftState = {
+  taskId: '',
+  existingReportId: '',
+  checks: [],
+  contractorSig: '',
+  clientSig: ''
 };
 
-function getQaProfileForTask(taskObj) {
-  const label = taskObj?.task || '';
-  if (QA_PROFILES[label]) {
-    return {
-      profileName: label,
-      standards: [...QA_PROFILES[label].standards],
-      questions: [...QA_PROFILES[label].questions]
-    };
-  }
-  const haystack = `${label} ${taskObj?.description || ''}`.toLowerCase();
-  const matchedKey = Object.keys(QA_PROFILES).find((k) =>
-    k !== 'Other / bespoke task' &&
-    k.toLowerCase().split(/\s+/).some((w) => w.length > 4 && haystack.includes(w))
-  );
-  if (matchedKey) {
-    return {
-      profileName: matchedKey,
-      standards: [...QA_PROFILES[matchedKey].standards],
-      questions: [...QA_PROFILES[matchedKey].questions]
-    };
-  }
-  return {
-    profileName: label || 'General / Bespoke Task',
-    standards: [...QA_PROFILES['Other / bespoke task'].standards],
-    questions: [...QA_PROFILES['Other / bespoke task'].questions]
-  };
+let qaSigDrawn = {
+  sigInspector: false,
+  sigClient: false
+};
+
+function buildBritishStandardChecks(taskObj, quoteObj) {
+  const stds = resolveBritishStandards(taskObj);
+  const s0 = stds[0] || 'BS 8000 (Workmanship on building sites)';
+  const s1 = stds[1] || s0;
+  const s2 = stds[2] || s1;
+  const quoteSummary = quoteObj?.items?.length
+    ? quoteObj.items.map((it) => it.description).join('; ')
+    : taskObj?.description || taskObj?.task || 'agreed task scope';
+
+  return [
+    {
+      id: 'chk-1',
+      label: 'Check 1 (Scope & Deliverables)',
+      standard: s0,
+      question: `Completed task deliverables match the agreed quotation scope and client instructions. (Quoted scope: ${quoteSummary})`,
+      status: 'Pass',
+      note: '',
+      photos: []
+    },
+    {
+      id: 'chk-2',
+      label: 'Check 2 (Materials & Application)',
+      standard: s1,
+      question: `Materials, sealants, fixings, and installation methods comply with ${s1} and manufacturer instructions.`,
+      status: 'Pass',
+      note: '',
+      photos: []
+    },
+    {
+      id: 'chk-3',
+      label: 'Check 3 (Workmanship & Finish)',
+      standard: s0,
+      question: `Workmanship finish, joint integrity, and alignment meet ${s0} standards with no defects or snags.`,
+      status: 'Pass',
+      note: '',
+      photos: []
+    },
+    {
+      id: 'chk-4',
+      label: 'Check 4 (Property Protection & Safety)',
+      standard: s2,
+      question: `Adjacent surfaces, fixtures, and services are protected and checked for safe operation under ${s2}.`,
+      status: 'Pass',
+      note: '',
+      photos: []
+    },
+    {
+      id: 'chk-5',
+      label: 'Check 5 (Site Handover & Cleanliness)',
+      standard: s0,
+      question: 'Work area and surrounding property left clean, safe, and tidy upon handover.',
+      status: 'Pass',
+      note: '',
+      photos: []
+    }
+  ];
 }
 
-let qaDraft = null;
-let qaSigState = {};
-
-async function getTaskAndQuote(taskId) {
+async function getTaskQuoteBundle(taskId) {
   const task = await get('jobs', taskId);
   if (!task) return null;
   const customer = task.customerId ? await get('customers', task.customerId) : null;
   const quotes = (await all('quotes'))
     .filter((q) => q.jobId === taskId)
     .sort((a, b) => (b.created || 0) - (a.created || 0));
-  return { task, customer, quote: quotes[0] || null };
+  const quote = quotes[0] || null;
+  return { task, customer, quote };
 }
 
 async function renderQaPage() {
@@ -269,102 +155,77 @@ async function renderQaPage() {
 
   $('#view').innerHTML = `
     <div class="c">
-      <h2>Quality Assurance (QA)</h2>
-      <p class="m">
-        Dynamically loads 5 British Standards checklist questions based on the task selected in the quotation, lets you add optional questions, and generates a dual-signed QA Certificate PDF.
-      </p>
-      <button type="button" class="w" onclick="openQaAssessmentBuilder()">+ New QA Assessment from Task &amp; Quote</button>
+      <h2>Quality Assurance (QA) Assessments</h2>
+      <p class="m">Complete task-matched <strong>British Standards</strong> checks, attach itemised evidence photos, capture dual signatures, and export a <strong>QA Certificate PDF</strong> (e.g. <code>${esc(formatDocRef('qa', '001'))}</code>).</p>
+      <button type="button" class="w" onclick="openQaAssessmentModal()">+ New QA Assessment</button>
     </div>
 
     <div class="c">
-      <h3>Completed QA Reports (${reports.length})</h3>
+      <h3>Completed &amp; Draft QA Reports (${reports.length})</h3>
       ${
         reports.length
           ? reports
               .map((r) => {
-                const fails = (r.items || []).filter((i) => i.status === 'Fail').length;
-                const badgeClass = fails ? 'bad' : 'ok';
-                const badgeText = fails ? `${fails} Snag(s)` : 'Passed';
+                const isSigned = r.status === 'Signed';
+                const qaRef = formatDocRef('qa', r.qaRef || r.jobRef || r.quoteNumber);
+                const quoRef = formatDocRef('quo', r.quoteNumber || r.qaRef || r.jobRef);
                 return `
                   <div class="doc-card">
                     <div style="display:flex;justify-content:space-between;align-items:center;gap:8px">
-                      <b>${esc(r.jobRef || 'QA')} · ${esc(r.customerName || '')}</b>
-                      <span class="tag ${badgeClass}">${badgeText}</span>
+                      <b>${esc(qaRef)} - ${esc(r.customerName || 'Client')}</b>
+                      <span class="tag ${isSigned ? 'ok' : ''}">${esc(r.status || 'Draft')}</span>
                     </div>
                     <div class="m" style="margin-top:4px">
-                      ${esc(r.taskName || r.taskDescription || '')}
-                      ${r.quoteNumber ? ` · Quote: <b>${esc(r.quoteNumber)}</b>` : ''}
+                      Ref: <b>${esc(qaRef)}</b> - Quote: <b>${esc(quoRef)}</b>
+                      ${r.taskName ? ` - ${esc(r.taskName)}` : ''}
                     </div>
-                    <div class="small">Date: ${dateFmt(r.date || '')} · Standards: ${esc((r.standards || []).join(', '))}</div>
+                    <div class="small">
+                      Inspection Date: ${dateFmt(r.inspectionDate || '') || 'Not set'}
+                      ${r.summary ? ` - ${esc(r.summary)}` : ''}
+                    </div>
                     <div class="doc-actions">
-                      <button type="button" onclick="openQaReportPdf('${esc(r.id)}')">View / Save PDF</button>
-                      <button type="button" class="secondary" onclick="shareQaReportPdf('${esc(r.id)}')">Share</button>
-                      <button type="button" class="secondary" onclick="openQaAssessmentBuilder('${esc(r.jobId || '')}', '${esc(r.id)}')">Edit</button>
+                      <button type="button" onclick="openQaPdfById('${esc(r.id)}')">View / Save PDF</button>
+                      <button type="button" class="secondary" onclick="shareQaPdfById('${esc(r.id)}')">Share</button>
+                      <button type="button" class="secondary" onclick="openQaAssessmentModal('${esc(r.jobId || '')}', '${esc(r.id)}')">Edit</button>
+                      <button type="button" class="secondary" onclick="navigateTo('invoices.html', { taskId: '${esc(r.jobId || '')}' })">Create Invoice</button>
                       <button type="button" class="danger" onclick="confirmDeleteQaReport('${esc(r.id)}')">Delete</button>
                     </div>
                   </div>`;
               })
               .join('')
-          : '<p class="m">No QA assessments recorded yet.</p>'
+          : '<p class="m">No QA reports recorded yet. Start an assessment above.</p>'
       }
     </div>
 
     <div class="c">
-      <h3>Tasks Ready for QA Assessment (${tasks.length})</h3>
+      <h3>Tasks Ready for QA Inspection (${tasks.length})</h3>
       ${
         tasks.length
           ? tasks
               .map((t) => {
                 const q = quoteByTask.get(t.id);
-                const prof = getQaProfileForTask(t);
+                const baseRef = q?.documentNumber || t.ref;
+                const qaRef = formatDocRef('qa', baseRef);
+                const quoRef = formatDocRef('quo', baseRef);
+                const stds = resolveBritishStandards(t);
                 return `
                   <div class="row">
                     <div>
-                      <b>${esc(t.ref)} · ${esc(t.customerName)}</b>
-                      <div class="m">${esc(t.task || t.description)}</div>
-                      <div class="small">
-                        ${q ? `Quote ${esc(q.documentNumber)} (${GBP(q.total)}) · ` : ''}Standards: ${esc(prof.standards.join(', '))}
-                      </div>
+                      <b>${esc(qaRef)} - ${esc(t.customerName)}</b>
+                      <div class="m">${esc(t.task || 'Task')} - ${esc(t.description || '')}</div>
+                      <div class="small">Quote: ${esc(quoRef)} - Standards: ${esc(stds.join(', '))}</div>
                     </div>
-                    <button type="button" onclick="openQaAssessmentBuilder('${esc(t.id)}')">Start QA</button>
+                    <button type="button" onclick="openQaAssessmentModal('${esc(t.id)}')">Inspect</button>
                   </div>`;
               })
               .join('')
-          : '<p class="m">No tasks available yet. Create a task &amp; quote in Step 3.</p>'
+          : '<p class="m">No tasks found. Create a task &amp; quotation first.</p>'
       }
     </div>
   `;
 }
 
-function buildItemsFromProfile(taskObj, quoteObj, existingItems = null) {
-  if (Array.isArray(existingItems) && existingItems.length) {
-    return existingItems.map((it, idx) => ({
-      id: it.id || uid(),
-      question: it.question,
-      standard: it.standard || getQaProfileForTask(taskObj).standards[idx % Math.max(1, getQaProfileForTask(taskObj).standards.length)] || 'BS 8214',
-      isOptional: Boolean(it.isOptional),
-      status: it.status || 'Pass',
-      note: it.note || '',
-      photo: it.photo || ''
-    }));
-  }
-  const prof = getQaProfileForTask(taskObj);
-  const stds = prof.standards.length ? prof.standards : ['BS 8214'];
-  const quoteHint = quoteObj?.items?.length
-    ? `Quoted scope (${quoteObj.documentNumber}): ${quoteObj.items.map((x) => x.description).join(', ')}. `
-    : '';
-  return prof.questions.slice(0, 5).map((qText, idx) => ({
-    id: uid(),
-    question: idx === 0 && quoteHint ? `${qText} (${quoteHint.trim()})` : qText,
-    standard: stds[idx % stds.length],
-    isOptional: false,
-    status: 'Pass',
-    note: '',
-    photo: ''
-  }));
-}
-
-async function openQaAssessmentBuilder(preselectedTaskId = '', existingReportId = '') {
+async function openQaAssessmentModal(preselectedTaskId = '', existingReportId = '') {
   const existing = existingReportId ? await get('qaReports', existingReportId) : null;
   const tasks = (await all('jobs')).sort((a, b) => (b.created || 0) - (a.created || 0));
   if (!tasks.length && !existing) {
@@ -372,267 +233,199 @@ async function openQaAssessmentBuilder(preselectedTaskId = '', existingReportId 
     return navigateTo('tasks.html', { action: 'new' });
   }
 
-  const targetTaskId = existing?.jobId || preselectedTaskId || tasks[0]?.id || '';
-  const ctx = await getTaskAndQuote(targetTaskId);
-  const task = ctx?.task || {};
-  const quote = ctx?.quote || null;
-  const prof = getQaProfileForTask(task);
+  const chosenTaskId = existing?.jobId || preselectedTaskId || tasks[0]?.id || '';
+  const bundle = await getTaskQuoteBundle(chosenTaskId);
+  const task = bundle?.task || {};
+  const quote = bundle?.quote || null;
 
-  qaDraft = {
-    id: existing?.id || '',
-    jobId: task.id || '',
-    jobRef: task.ref || existing?.jobRef || '',
-    quoteId: quote?.id || existing?.quoteId || '',
-    quoteNumber: quote?.documentNumber || existing?.quoteNumber || '',
-    customerName: task.customerName || existing?.customerName || '',
-    customerAddress: task.customerAddress || ctx?.customer?.address || existing?.customerAddress || '',
-    taskName: task.task || existing?.taskName || prof.profileName,
-    taskDescription: task.description || existing?.taskDescription || '',
-    standards: existing?.standards?.length ? [...existing.standards] : [...prof.standards],
-    date: existing?.date || today(),
-    inspectorName: existing?.inspectorName || brand.name || '',
-    clientSignatory: existing?.clientSignatory || task.customerName || '',
-    overallNotes: existing?.overallNotes || '',
-    items: buildItemsFromProfile(task, quote, existing?.items || null)
+  const baseRef = quote?.documentNumber || task.ref || existing?.qaRef;
+  const qaRef = formatDocRef('qa', baseRef);
+  const quoRef = formatDocRef('quo', baseRef);
+  const tskRef = formatDocRef('tsk', baseRef);
+  const standards = resolveBritishStandards(task);
+
+  const initialChecks =
+    existing?.checks?.length
+      ? existing.checks.map((c) => ({ ...c, photos: Array.isArray(c.photos) ? [...c.photos] : [] }))
+      : buildBritishStandardChecks(task, quote);
+
+  qaDraftState = {
+    taskId: task.id || '',
+    existingReportId: existing?.id || '',
+    checks: initialChecks,
+    contractorSig: existing?.contractorSignature || '',
+    clientSig: existing?.clientSignature || ''
   };
 
-  renderQaBuilderModal(existing);
-}
-
-async function switchQaTask(newTaskId, existingReportId = '') {
-  const existing = existingReportId ? await get('qaReports', existingReportId) : null;
-  const ctx = await getTaskAndQuote(newTaskId);
-  if (!ctx?.task) return;
-  const task = ctx.task;
-  const quote = ctx.quote;
-  const prof = getQaProfileForTask(task);
-
-  qaDraft = {
-    id: existing?.id || '',
-    jobId: task.id,
-    jobRef: task.ref,
-    quoteId: quote?.id || '',
-    quoteNumber: quote?.documentNumber || '',
-    customerName: task.customerName || '',
-    customerAddress: task.customerAddress || ctx.customer?.address || '',
-    taskName: task.task || prof.profileName,
-    taskDescription: task.description || '',
-    standards: [...prof.standards],
-    date: $('#qaDate')?.value || today(),
-    inspectorName: $('#qaInspector')?.value || brand.name || '',
-    clientSignatory: $('#qaClientSigName')?.value || task.customerName || '',
-    overallNotes: $('#qaOverallNotes')?.value || '',
-    items: buildItemsFromProfile(task, quote, null)
-  };
-
-  renderQaBuilderModal(existing);
-}
-
-async function renderQaBuilderModal(existing = null) {
-  const tasks = (await all('jobs')).sort((a, b) => (b.created || 0) - (a.created || 0));
+  const scopeSummary =
+    existing?.scopeSummary ||
+    (quote?.items?.length
+      ? quote.items.map((it) => `${it.description} (${GBP(it.amount)})`).join(', ')
+      : task.description || task.task || '');
 
   modal(`
-    <h2>${qaDraft.id ? 'Edit' : 'New'} QA Assessment</h2>
-    <p class="m">Task Ref: <b>${esc(qaDraft.jobRef || 'N/A')}</b>${qaDraft.quoteNumber ? ` · Quote: <b>${esc(qaDraft.quoteNumber)}</b>` : ''}</p>
+    <h2>${existing ? 'Edit QA Assessment' : 'New QA Assessment'} (${esc(qaRef)})</h2>
+    <p class="m">Task: <b>${esc(tskRef)}</b> - Quote: <b>${esc(quoRef)}</b></p>
 
-    <div class="std-strip">
-      ${(qaDraft.standards || []).map((s) => `<span class="std-chip">${esc(s)}</span>`).join('')}
+    <div class="std-list">
+      ${standards.map((s) => `<span class="std-badge">${esc(s)}</span>`).join('')}
     </div>
 
-    <form id="qaForm" onsubmit="event.preventDefault();saveQaReport()">
-      <label>Task Reference</label>
-      <select id="qaTaskSelect" onchange="switchQaTask(this.value, '${esc(qaDraft.id || '')}')">
+    <form id="qaForm" onsubmit="event.preventDefault();saveQaAssessment()">
+      <label>Select Task</label>
+      <select name="taskId" id="qaTaskSelect" onchange="switchQaTask(this.value, '${esc(existing?.id || '')}')">
         ${tasks
           .map(
             (t) =>
-              `<option value="${esc(t.id)}" ${t.id === qaDraft.jobId ? 'selected' : ''}>${esc(t.ref)} · ${esc(t.customerName)} (${esc(t.task || 'General')})</option>`
+              `<option value="${esc(t.id)}" ${t.id === task.id ? 'selected' : ''}>${esc(formatDocRef('tsk', t.ref))} - ${esc(t.customerName)} (${esc(t.task || 'Task')})</option>`
           )
           .join('')}
       </select>
 
+      <label>QA Reference</label>
+      <input name="qaRef" value="${esc(qaRef)}" readonly>
+
       <label>Customer &amp; Site Address</label>
-      <input id="qaCustomerInfo" value="${esc(`${qaDraft.customerName}${qaDraft.customerAddress ? ' — ' + qaDraft.customerAddress.replace(/\n/g, ', ') : ''}`)}" readonly>
+      <input name="customerSite" value="${esc(`${task.customerName || ''} - ${task.customerAddress || bundle?.customer?.address || ''}`)}" readonly>
 
       <label>Quoted Scope Summary</label>
-      <textarea id="qaScopeDisplay" readonly style="min-height:60px">${esc(qaDraft.taskDescription || qaDraft.taskName || '')}</textarea>
+      <textarea name="scopeSummary">${esc(scopeSummary)}</textarea>
 
       <label>Inspection Date</label>
-      <input id="qaDate" type="date" value="${esc(qaDraft.date || today())}" required>
+      <input name="inspectionDate" type="date" value="${esc(existing?.inspectionDate || today())}" required>
 
-      <h3>British Standards Inspection Questions (${qaDraft.items.length})</h3>
-      <div id="qaChecklistContainer">
-        ${renderQaItemsHtml()}
+      <h3>British Standards Inspection Checks (${qaDraftState.checks.length})</h3>
+      <div id="qaChecksContainer"></div>
+
+      <label style="margin-top:10px">Overall Handover Notes</label>
+      <textarea name="notes" placeholder="Overall quality summary, handover remarks, or follow-up items...">${esc(existing?.notes || '')}</textarea>
+
+      <div class="c">
+        <h3>Dual Sign-Off</h3>
+        <label>Inspector / Contractor Name</label>
+        <input name="inspectorName" value="${esc(existing?.inspectorName || brand.name || 'Contractor')}" required>
+
+        <label>Inspector / Contractor Signature</label>
+        <canvas id="sigInspector" class="signature"></canvas>
+        <button type="button" class="secondary" onclick="clearQaSig('sigInspector')">Clear Inspector Signature</button>
+
+        <label style="margin-top:10px">Client Name</label>
+        <input name="clientName" value="${esc(existing?.clientName || task.customerName || '')}" required>
+
+        <label>Client Signature</label>
+        <canvas id="sigClient" class="signature"></canvas>
+        <button type="button" class="secondary" onclick="clearQaSig('sigClient')">Clear Client Signature</button>
       </div>
 
-      <div class="c" style="background:#f8fafb;margin-top:10px">
-        <h3>Add Optional Question</h3>
-        <label>Optional Question Text</label>
-        <input id="optQaQuestion" placeholder="e.g. Check customer satisfaction with finishing detail...">
-        <label>Applicable Standard (optional)</label>
-        <input id="optQaStandard" value="${esc((qaDraft.standards && qaDraft.standards[0]) || 'BS 8214')}" placeholder="e.g. BS 8214">
-        <button type="button" class="secondary w" onclick="addOptionalQaQuestion()">+ Add Optional Question</button>
-      </div>
-
-      <label style="margin-top:10px">Overall QA &amp; Handover Notes</label>
-      <textarea id="qaOverallNotes" placeholder="Summary of inspection, snags raised, or completion notes...">${esc(qaDraft.overallNotes || '')}</textarea>
-
-      <h3>Dual Signatures</h3>
-      <label>Contractor / Inspector Name</label>
-      <input id="qaInspector" value="${esc(qaDraft.inspectorName || brand.name || '')}" required>
-      <canvas id="qaSigInspector" class="signature"></canvas>
-      <button type="button" class="secondary" onclick="clearQaSig('qaSigInspector')">Clear Inspector Signature</button>
-
-      <label style="margin-top:10px">Client Name</label>
-      <input id="qaClientSigName" value="${esc(qaDraft.clientSignatory || qaDraft.customerName || '')}" required>
-      <canvas id="qaSigClient" class="signature"></canvas>
-      <button type="button" class="secondary" onclick="clearQaSig('qaSigClient')">Clear Client Signature</button>
-
-      <button type="submit" class="w" style="margin-top:12px">Save QA Assessment &amp; Generate PDF</button>
+      <button type="submit" class="w" style="margin-top:8px">Save QA Report &amp; Generate PDF</button>
     </form>
   `);
 
-  initQaSigPad('qaSigInspector', existing?.inspectorSignature || '');
-  initQaSigPad('qaSigClient', existing?.clientSignature || '');
+  renderQaChecksList();
+  initQaSigCanvas('sigInspector', qaDraftState.contractorSig, 'sigInspector');
+  initQaSigCanvas('sigClient', qaDraftState.clientSig, 'sigClient');
 }
 
-function syncQaDraftInputsFromDom() {
-  if (!qaDraft) return;
-  qaDraft.date = $('#qaDate')?.value || qaDraft.date || today();
-  qaDraft.inspectorName = $('#qaInspector')?.value || qaDraft.inspectorName || '';
-  qaDraft.clientSignatory = $('#qaClientSigName')?.value || qaDraft.clientSignatory || '';
-  qaDraft.overallNotes = $('#qaOverallNotes')?.value ?? qaDraft.overallNotes ?? '';
-  qaDraft.items.forEach((item) => {
-    const qEl = document.querySelector(`[data-qa-q="${item.id}"]`);
-    const nEl = document.querySelector(`[data-qa-n="${item.id}"]`);
-    if (qEl) item.question = qEl.value;
-    if (nEl) item.note = nEl.value;
-  });
-}
+function renderQaChecksList() {
+  const container = $('#qaChecksContainer');
+  if (!container) return;
 
-function renderQaItemsHtml() {
-  return qaDraft.items
-    .map((item, idx) => {
-      const pCls = item.status === 'Pass' ? 'active-pass' : '';
-      const fCls = item.status === 'Fail' ? 'active-fail' : '';
-      const aCls = item.status === 'N/A' ? 'active-na' : '';
-      return `
-        <div class="qa-item">
-          <div style="display:flex;justify-content:space-between;align-items:center;gap:8px">
-            <span class="small"><b>Check ${idx + 1}${item.isOptional ? ' (Optional)' : ' (Standard)'}</b> · ${esc(item.standard || '')}</span>
-            ${
-              item.isOptional
-                ? `<button type="button" class="danger" style="min-height:32px;padding:3px 9px;font-size:12px;margin:0" onclick="removeQaItem('${esc(item.id)}')">Remove</button>`
-                : ''
-            }
-          </div>
-          <label style="margin-top:6px">Question</label>
-          <input data-qa-q="${esc(item.id)}" value="${esc(item.question)}" onchange="syncQaDraftInputsFromDom()">
+  container.innerHTML = qaDraftState.checks
+    .map(
+      (chk, idx) => `
+      <div class="check-card">
+        <b>${esc(chk.label)} - <span style="color:var(--ac)">${esc(chk.standard)}</span></b>
+        <div class="m" style="margin:4px 0 8px">${esc(chk.question)}</div>
 
-          <div class="status-pills">
-            <button type="button" class="pill-btn ${pCls}" onclick="setQaItemStatus('${esc(item.id)}', 'Pass')">Pass</button>
-            <button type="button" class="pill-btn ${fCls}" onclick="setQaItemStatus('${esc(item.id)}', 'Fail')">Fail / Snag</button>
-            <button type="button" class="pill-btn ${aCls}" onclick="setQaItemStatus('${esc(item.id)}', 'N/A')">N/A</button>
-          </div>
+        <label>Result</label>
+        <div class="status-group">
+          ${['Pass', 'Fail', 'N/A']
+            .map(
+              (st) => `
+              <button
+                type="button"
+                class="status-pill-btn ${chk.status === st ? 'active' : ''}"
+                onclick="setQaCheckStatus(${idx}, '${st}')"
+              >${st}</button>`
+            )
+            .join('')}
+        </div>
 
-          <label>Notes / Snag Details</label>
-          <input data-qa-n="${esc(item.id)}" value="${esc(item.note || '')}" placeholder="Observations, measurements, or snag action..." onchange="syncQaDraftInputsFromDom()">
+        <label>Inspection Note</label>
+        <input
+          type="text"
+          value="${esc(chk.note || '')}"
+          placeholder="Add check note or defect observation..."
+          oninput="setQaCheckNote(${idx}, this.value)"
+        >
 
-          <label>Photo Evidence (optional)</label>
-          <input type="file" accept="image/*" onchange="attachQaPhoto('${esc(item.id)}', this)">
-          ${
-            item.photo
-              ? `<img src="${item.photo}" class="photo-thumb" alt="QA Photo">
-                 <button type="button" class="secondary" style="min-height:34px;padding:4px 10px;font-size:12px;margin-top:6px" onclick="clearQaPhoto('${esc(item.id)}')">Remove Photo</button>`
-              : ''
-          }
-        </div>`;
-    })
+        <label>Check Evidence Photos</label>
+        <input type="file" accept="image/*" multiple onchange="addQaCheckPhotos(${idx}, this)">
+        <div class="thumbs">
+          ${(chk.photos || [])
+            .map(
+              (pSrc, pIdx) =>
+                `<img src="${esc(pSrc)}" alt="Check photo ${pIdx + 1}" title="Tap to remove" onclick="removeQaCheckPhoto(${idx}, ${pIdx})" style="cursor:pointer">`
+            )
+            .join('')}
+        </div>
+      </div>`
+    )
     .join('');
 }
 
-function refreshQaChecklistDom() {
-  const container = $('#qaChecklistContainer');
-  if (container) container.innerHTML = renderQaItemsHtml();
+function setQaCheckStatus(idx, status) {
+  if (!qaDraftState.checks[idx]) return;
+  qaDraftState.checks[idx].status = status;
+  renderQaChecksList();
 }
 
-function setQaItemStatus(itemId, status) {
-  syncQaDraftInputsFromDom();
-  const target = qaDraft.items.find((x) => x.id === itemId);
-  if (target) target.status = status;
-  refreshQaChecklistDom();
+function setQaCheckNote(idx, val) {
+  if (!qaDraftState.checks[idx]) return;
+  qaDraftState.checks[idx].note = val;
 }
 
-function addOptionalQaQuestion() {
-  syncQaDraftInputsFromDom();
-  const qText = ($('#optQaQuestion')?.value || '').trim();
-  if (!qText) return toast('Enter an optional question first');
-  const stdText = ($('#optQaStandard')?.value || '').trim() || (qaDraft.standards?.[0] || 'BS 8214');
-  qaDraft.items.push({
-    id: uid(),
-    question: qText,
-    standard: stdText,
-    isOptional: true,
-    status: 'Pass',
-    note: '',
-    photo: ''
-  });
-  $('#optQaQuestion').value = '';
-  refreshQaChecklistDom();
-  toast('Optional question added');
-}
-
-function removeQaItem(itemId) {
-  syncQaDraftInputsFromDom();
-  qaDraft.items = qaDraft.items.filter((x) => x.id !== itemId);
-  refreshQaChecklistDom();
-}
-
-async function compressPhotoDataUrl(file, maxDim = 1100, quality = 0.78) {
-  const rawUrl = await fileData(file);
-  return new Promise((resolve) => {
-    const img = new Image();
-    img.onload = () => {
-      let { width: w, height: h } = img;
-      if (w > maxDim || h > maxDim) {
-        const scale = Math.min(maxDim / w, maxDim / h);
-        w = Math.round(w * scale);
-        h = Math.round(h * scale);
-      }
-      const c = document.createElement('canvas');
-      c.width = w;
-      c.height = h;
-      c.getContext('2d').drawImage(img, 0, 0, w, h);
-      resolve(c.toDataURL('image/jpeg', quality));
-    };
-    img.onerror = () => resolve(rawUrl);
-    img.src = rawUrl;
-  });
-}
-
-async function attachQaPhoto(itemId, input) {
-  const file = input.files?.[0];
-  if (!file) return;
-  syncQaDraftInputsFromDom();
-  const item = qaDraft.items.find((x) => x.id === itemId);
-  if (item) {
-    item.photo = await compressPhotoDataUrl(file);
-    refreshQaChecklistDom();
-    toast('Photo attached');
+async function addQaCheckPhotos(idx, input) {
+  if (!qaDraftState.checks[idx]) return;
+  const files = Array.from(input.files || []);
+  for (const file of files) {
+    try {
+      const dataUrl = await fileData(file);
+      qaDraftState.checks[idx].photos.push(dataUrl);
+    } catch (e) {
+      toast('Could not add photo: ' + e.message);
+    }
   }
   input.value = '';
+  renderQaChecksList();
 }
 
-function clearQaPhoto(itemId) {
-  syncQaDraftInputsFromDom();
-  const item = qaDraft.items.find((x) => x.id === itemId);
-  if (item) {
-    item.photo = '';
-    refreshQaChecklistDom();
+function removeQaCheckPhoto(chkIdx, photoIdx) {
+  if (!qaDraftState.checks[chkIdx]) return;
+  qaDraftState.checks[chkIdx].photos.splice(photoIdx, 1);
+  renderQaChecksList();
+}
+
+async function switchQaTask(newTaskId, existingReportId = '') {
+  const form = $('#qaForm');
+  const f = form ? formData(form) : {};
+  const bundle = await getTaskQuoteBundle(newTaskId);
+  const task = bundle?.task || {};
+  const quote = bundle?.quote || null;
+
+  qaDraftState.checks = buildBritishStandardChecks(task, quote);
+  await openQaAssessmentModal(newTaskId, existingReportId);
+
+  if (f.inspectionDate && $('#qaForm [name="inspectionDate"]')) {
+    $('#qaForm [name="inspectionDate"]').value = f.inspectionDate;
+  }
+  if (f.notes && $('#qaForm [name="notes"]')) {
+    $('#qaForm [name="notes"]').value = f.notes;
   }
 }
 
-function initQaSigPad(id, existingUrl = '') {
-  const canvas = $('#' + id);
+function initQaSigCanvas(canvasId, existingUrl, flagKey) {
+  const canvas = $('#' + canvasId);
   if (!canvas) return;
   const ctx = canvas.getContext('2d');
   canvas.width = 760;
@@ -641,13 +434,13 @@ function initQaSigPad(id, existingUrl = '') {
   ctx.lineCap = 'round';
   ctx.lineJoin = 'round';
   ctx.strokeStyle = '#14232f';
-  qaSigState[id] = { drawn: false };
+  qaSigDrawn[flagKey] = false;
 
   if (existingUrl) {
     const img = new Image();
     img.onload = () => {
       ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
-      qaSigState[id].drawn = true;
+      qaSigDrawn[flagKey] = true;
     };
     img.src = existingUrl;
   }
@@ -671,75 +464,99 @@ function initQaSigPad(id, existingUrl = '') {
     if (!drawing) return;
     ctx.lineTo(...pt(e));
     ctx.stroke();
-    qaSigState[id].drawn = true;
+    qaSigDrawn[flagKey] = true;
   };
   canvas.onpointerup = canvas.onpointercancel = () => {
     drawing = false;
   };
 }
 
-function clearQaSig(id) {
-  const c = $('#' + id);
-  if (!c) return;
-  c.getContext('2d').clearRect(0, 0, c.width, c.height);
-  if (qaSigState[id]) qaSigState[id].drawn = false;
+function clearQaSig(canvasId) {
+  const canvas = $('#' + canvasId);
+  if (!canvas) return;
+  canvas.getContext('2d').clearRect(0, 0, canvas.width, canvas.height);
+  qaSigDrawn[canvasId] = false;
 }
 
-async function saveQaReport() {
-  syncQaDraftInputsFromDom();
-  if (!qaDraft || !qaDraft.items.length) return toast('At least one inspection question is required');
+async function saveQaAssessment() {
+  const form = $('#qaForm');
+  if (!form || !form.reportValidity()) return;
+  const f = formData(form);
 
-  const old = qaDraft.id ? await get('qaReports', qaDraft.id) : null;
-  const inspectorSig = qaSigState.qaSigInspector?.drawn
-    ? $('#qaSigInspector').toDataURL('image/png')
+  const bundle = await getTaskQuoteBundle(f.taskId);
+  if (!bundle?.task) return toast('Please choose a valid task');
+
+  const task = bundle.task;
+  const quote = bundle.quote;
+  const old = qaDraftState.existingReportId
+    ? await get('qaReports', qaDraftState.existingReportId)
+    : null;
+
+  const baseRef = quote?.documentNumber || task.ref || old?.qaRef;
+  const qaRef = formatDocRef('qa', baseRef);
+  const quoRef = formatDocRef('quo', baseRef);
+  const tskRef = formatDocRef('tsk', baseRef);
+  const standards = resolveBritishStandards(task);
+
+  const contractorSigUrl = qaSigDrawn.sigInspector
+    ? $('#sigInspector').toDataURL('image/png')
     : '';
-  const clientSig = qaSigState.qaSigClient?.drawn
-    ? $('#qaSigClient').toDataURL('image/png')
+  const clientSigUrl = qaSigDrawn.sigClient
+    ? $('#sigClient').toDataURL('image/png')
     : '';
 
-  const report = {
+  const passCount = qaDraftState.checks.filter((c) => c.status === 'Pass').length;
+  const failCount = qaDraftState.checks.filter((c) => c.status === 'Fail').length;
+  const summary = `${passCount} Pass, ${failCount} Fail of ${qaDraftState.checks.length} checks`;
+  const status = contractorSigUrl && clientSigUrl ? 'Signed' : 'Draft';
+
+  const record = {
     ...(old || {}),
     id: old?.id || uid(),
-    jobId: qaDraft.jobId,
-    jobRef: qaDraft.jobRef,
-    quoteId: qaDraft.quoteId,
-    quoteNumber: qaDraft.quoteNumber,
-    customerName: qaDraft.customerName,
-    customerAddress: qaDraft.customerAddress,
-    taskName: qaDraft.taskName,
-    taskDescription: qaDraft.taskDescription,
-    standards: qaDraft.standards || [],
-    date: qaDraft.date || today(),
-    inspectorName: (qaDraft.inspectorName || brand.name || '').trim(),
-    clientSignatory: (qaDraft.clientSignatory || qaDraft.customerName || '').trim(),
-    overallNotes: (qaDraft.overallNotes || '').trim(),
-    items: qaDraft.items,
-    inspectorSignature: inspectorSig,
-    clientSignature: clientSig,
+    jobId: task.id,
+    jobRef: tskRef,
+    qaRef,
+    quoteId: quote?.id || '',
+    quoteNumber: quoRef,
+    customerId: task.customerId || '',
+    customerName: task.customerName || '',
+    customerAddress: task.customerAddress || bundle.customer?.address || '',
+    taskName: task.task || 'Task',
+    scopeSummary: (f.scopeSummary || '').trim(),
+    standards,
+    checks: qaDraftState.checks,
+    notes: (f.notes || '').trim(),
+    inspectionDate: f.inspectionDate || today(),
+    inspectorName: (f.inspectorName || brand.name || 'Contractor').trim(),
+    clientName: (f.clientName || task.customerName || '').trim(),
+    contractorSignature: contractorSigUrl,
+    clientSignature: clientSigUrl,
+    summary,
+    status,
     created: old?.created || Date.now(),
     updatedAt: Date.now()
   };
 
   try {
-    const pdfBlob = await makeQaReportPdf(report);
-    const filename = `${report.jobRef || 'QA'}_Quality_Inspection_${report.date}.pdf`.replace(/[^a-zA-Z0-9._-]/g, '_');
-    report.filename = filename;
-    report.pdfData = await fileData(new File([pdfBlob], filename, { type: 'application/pdf' }));
+    const pdfBlob = await makeQaPdf(record);
+    const filename = `${qaRef}.pdf`;
+    record.filename = filename;
+    record.pdfData = await fileData(new File([pdfBlob], filename, { type: 'application/pdf' }));
 
     if (isSupabaseConfigured()) {
       try {
-        report.pdfStorage = await uploadPdfToSupabase(
+        record.pdfStorage = await uploadPdfToSupabase(
           pdfBlob,
-          `qa/${report.jobRef || 'general'}/${filename}`
+          `qa/${extractSeqDigits(qaRef)}/${filename}`
         );
       } catch (upErr) {
         console.warn('QA PDF upload skipped:', upErr.message);
       }
     }
 
-    await put('qaReports', report);
+    await put('qaReports', record);
     closeModal();
-    toast(old ? 'QA report updated' : 'QA report saved & PDF generated');
+    toast(`Saved ${qaRef} & generated QA PDF`);
     await renderQaPage();
   } catch (e) {
     console.error(e);
@@ -747,145 +564,174 @@ async function saveQaReport() {
   }
 }
 
-async function makeQaReportPdf(r) {
+async function embedImageFromDataUrl(pdf, dataUrl) {
+  if (!dataUrl || typeof dataUrl !== 'string' || !dataUrl.startsWith('data:image')) return null;
+  const bytes = Uint8Array.from(atob(dataUrl.split(',')[1]), (ch) => ch.charCodeAt(0));
+  if (dataUrl.startsWith('data:image/png')) return await pdf.embedPng(bytes);
+  return await pdf.embedJpg(bytes);
+}
+
+async function makeQaPdf(r) {
   const ctx = await createBrandedPdfDocument();
   const { pdf, font, bold, width: W, height: H, margin } = ctx;
+  const qaRef = pdfSafeText(r.qaRef || formatDocRef('qa', r.jobRef));
+  const quoRef = pdfSafeText(r.quoteNumber || formatDocRef('quo', qaRef));
+  const tskRef = pdfSafeText(formatDocRef('tsk', qaRef));
+  const [ar, ag, ab] = hexToRgbTuple(brand.color || '#0f5c5c');
+  const accentCol = PDFLib.rgb(ar, ag, ab);
+  const inkCol = PDFLib.rgb(0.08, 0.14, 0.18);
+  const tintCol = PDFLib.rgb(0.96, 0.97, 0.98);
+
   let page = pdf.addPage([W, H]);
-  let y = drawStandardPdfHeader(ctx, page, 'QUALITY ASSURANCE', r.jobRef || '');
+  let y = drawStandardPdfHeader(ctx, page, 'QUALITY ASSURANCE', qaRef);
 
   function ensureSpace(needed = 24) {
     if (y - needed < 68) {
       page = pdf.addPage([W, H]);
-      y = drawStandardPdfHeader(ctx, page, 'QUALITY ASSURANCE', r.jobRef || '');
+      y = drawStandardPdfHeader(ctx, page, 'QUALITY ASSURANCE', qaRef);
     }
   }
 
-  function writeLine(text, size = 9.5, isBold = false, indent = 0) {
-    const words = String(text || '').split(/\s+/).filter(Boolean);
-    if (!words.length) {
-      ensureSpace(size + 5);
-      y -= size + 5;
-      return;
-    }
-    const maxW = W - margin * 2 - indent;
-    let line = '';
-    for (const w of words) {
-      const test = line ? `${line} ${w}` : w;
-      if (font.widthOfTextAtSize(test, size) > maxW && line) {
-        ensureSpace(size + 5);
-        page.drawText(line, {
+  function writeText(text, size = 9.2, isBold = false, indent = 0) {
+    const blocks = pdfSafeText(text || '').split('\n');
+    const maxW = W - margin * 2 - indent - 6;
+    for (const blk of blocks) {
+      const words = blk.trim().split(/\s+/).filter(Boolean);
+      if (!words.length) {
+        ensureSpace(size + 4.5);
+        y -= size + 4.5;
+        continue;
+      }
+      let line = '';
+      for (const w of words) {
+        const test = line ? `${line} ${w}` : w;
+        if (font.widthOfTextAtSize(pdfSafeText(test), size) > maxW && line) {
+          ensureSpace(size + 4.5);
+          page.drawText(pdfSafeText(line), {
+            x: margin + indent,
+            y,
+            size,
+            font: isBold ? bold : font,
+            color: inkCol
+          });
+          y -= size + 4.5;
+          line = w;
+        } else {
+          line = test;
+        }
+      }
+      if (line) {
+        ensureSpace(size + 4.5);
+        page.drawText(pdfSafeText(line), {
           x: margin + indent,
           y,
           size,
           font: isBold ? bold : font,
-          color: PDFLib.rgb(0.08, 0.14, 0.18)
+          color: inkCol
         });
-        y -= size + 5;
-        line = w;
-      } else {
-        line = test;
+        y -= size + 4.5;
       }
-    }
-    if (line) {
-      ensureSpace(size + 5);
-      page.drawText(line, {
-        x: margin + indent,
-        y,
-        size,
-        font: isBold ? bold : font,
-        color: PDFLib.rgb(0.08, 0.14, 0.18)
-      });
-      y -= size + 5;
     }
   }
 
   function sectionHeading(title) {
-    ensureSpace(26);
+    ensureSpace(28);
     y -= 6;
-    page.drawText(title.toUpperCase(), {
+    page.drawRectangle({
       x: margin,
-      y,
+      y: y - 3,
+      width: W - margin * 2,
+      height: 17,
+      color: tintCol
+    });
+    page.drawText(pdfSafeText(String(title || '').toUpperCase()), {
+      x: margin + 6,
+      y: y + 1,
       size: 9.5,
       font: bold,
-      color: PDFLib.rgb(...hexToRgbTuple(brand.color || '#0f5c5c'))
+      color: accentCol
     });
-    y -= 15;
+    y -= 18;
   }
 
-  sectionHeading('Inspection & Quotation Summary');
-  writeLine(`Customer: ${r.customerName || ''} · Task Ref: ${r.jobRef || 'N/A'}${r.quoteNumber ? ` · Quote Ref: ${r.quoteNumber}` : ''}`, 9.5, true);
-  if (r.customerAddress) writeLine(`Site Address: ${r.customerAddress.replace(/\n/g, ', ')}`, 9);
-  writeLine(`Task / Scope: ${r.taskName || ''} — ${r.taskDescription || ''}`, 9);
-  writeLine(`Inspection Date: ${dateFmt(r.date || '')}`, 9);
+  sectionHeading('Inspection & Task Summary');
+  writeText(`Customer: ${r.customerName || ''} - QA Ref: ${qaRef} - Quote Ref: ${quoRef} - Task Ref: ${tskRef}`, 9.2, true);
+  if (r.customerAddress) writeText(`Site Address: ${r.customerAddress.replace(/\n/g, ', ')}`, 9);
+  writeText(`Task Category: ${r.taskName || 'Task'} - Inspection Date: ${dateFmt(r.inspectionDate || '')} - Status: ${r.status || 'Draft'}`, 9);
+  if (r.scopeSummary) writeText(`Quoted Scope: ${r.scopeSummary}`, 9);
 
   sectionHeading('British Standards Followed');
-  writeLine((r.standards || []).join(' · ') || 'UK Trade & British Standards', 9.5, true);
+  for (const std of r.standards || []) {
+    writeText(`- ${std}`, 9, false, 4);
+  }
 
   sectionHeading('Checklist & Quality Checks');
-  for (let i = 0; i < (r.items || []).length; i++) {
-    const it = r.items[i];
-    ensureSpace(44);
-    writeLine(`${i + 1}. [${it.status || 'Pass'}] (${it.standard || 'BS'}) ${it.question}`, 9.2, true);
-    if (it.note) writeLine(`Note: ${it.note}`, 8.8, false, 10);
-    if (it.photo) {
+  for (const chk of r.checks || []) {
+    ensureSpace(34);
+    writeText(`${chk.label} [${chk.status || 'Pass'}] - ${chk.standard || ''}`, 9.3, true, 2);
+    writeText(chk.question || '', 8.8, false, 6);
+    if (chk.note) {
+      writeText(`Note: ${chk.note}`, 8.8, false, 10);
+    }
+    for (const pSrc of chk.photos || []) {
       try {
-        const bytes = Uint8Array.from(atob(it.photo.split(',')[1]), (ch) => ch.charCodeAt(0));
-        const img = it.photo.startsWith('data:image/png')
-          ? await pdf.embedPng(bytes)
-          : await pdf.embedJpg(bytes);
-        const dims = img.scale(Math.min(180 / img.width, 110 / img.height));
-        ensureSpace(dims.height + 14);
-        page.drawImage(img, {
-          x: margin + 10,
-          y: y - dims.height,
-          width: dims.width,
-          height: dims.height
-        });
-        y -= dims.height + 10;
+        const img = await embedImageFromDataUrl(pdf, pSrc);
+        if (img) {
+          const dims = img.scale(Math.min(130 / img.width, 90 / img.height));
+          ensureSpace(dims.height + 12);
+          page.drawImage(img, {
+            x: margin + 10,
+            y: y - dims.height,
+            width: dims.width,
+            height: dims.height
+          });
+          y -= dims.height + 10;
+        }
       } catch (e) {
-        // Ignore broken image bytes
+        // Skip invalid photo
       }
     }
     y -= 4;
   }
 
-  if (r.overallNotes) {
+  if (r.notes) {
     sectionHeading('Overall Handover Notes');
-    writeLine(r.overallNotes, 9.2);
+    writeText(r.notes, 9, false, 2);
   }
 
   sectionHeading('Dual Sign-Off');
-  for (const [label, name, sigUrl] of [
-    ['Inspector / Contractor', r.inspectorName, r.inspectorSignature],
-    ['Client', r.clientSignatory, r.clientSignature]
+  for (const [roleLabel, partyName, sigUrl] of [
+    ['Inspector / Contractor', r.inspectorName, r.contractorSignature],
+    ['Client', r.clientName, r.clientSignature]
   ]) {
-    ensureSpace(82);
-    writeLine(`${label}: ${name || '_________________________'}`, 9.5, true);
+    ensureSpace(84);
+    writeText(`${roleLabel}: ${partyName || '_________________________'}`, 9.5, true, 2);
     if (sigUrl) {
       try {
-        const bytes = Uint8Array.from(atob(sigUrl.split(',')[1]), (ch) => ch.charCodeAt(0));
-        const img = await pdf.embedPng(bytes);
-        const dims = img.scale(Math.min(150 / img.width, 45 / img.height));
-        page.drawImage(img, {
-          x: margin + 4,
-          y: y - dims.height,
-          width: dims.width,
-          height: dims.height
-        });
-        y -= dims.height + 10;
+        const img = await embedImageFromDataUrl(pdf, sigUrl);
+        if (img) {
+          const dims = img.scale(Math.min(155 / img.width, 46 / img.height));
+          page.drawImage(img, {
+            x: margin + 6,
+            y: y - dims.height,
+            width: dims.width,
+            height: dims.height
+          });
+          y -= dims.height + 12;
+        }
       } catch (e) {
         y -= 18;
       }
     } else {
-      writeLine('Signature: [Not signed]', 8.8, false, 4);
+      writeText('Signature: [Awaiting signature]', 8.8, false, 6);
     }
   }
 
-  applyStandardPdfFooters(ctx, 'Quality Inspection Certificate');
+  applyStandardPdfFooters(ctx, `Quality Inspection Certificate ${qaRef}`);
   return new Blob([await pdf.save()], { type: 'application/pdf' });
 }
 
-async function resolveQaPdfBlob(r) {
+async function resolveQaBlob(r) {
   if (r.pdfData) {
     return await fetch(r.pdfData).then((res) => res.blob());
   }
@@ -893,31 +739,31 @@ async function resolveQaPdfBlob(r) {
     const remote = await fetchPdfBlobFromSupabase(r.pdfStorage);
     if (remote) return remote;
   }
-  return await makeQaReportPdf(r);
+  return await makeQaPdf(r);
 }
 
-async function openQaReportPdf(reportId) {
+async function openQaPdfById(reportId) {
   const win = window.open('about:blank', '_blank');
   try {
     const r = await get('qaReports', reportId);
     if (!r) throw new Error('QA report not found');
-    const blob = await resolveQaPdfBlob(r);
-    presentPdf(blob, r.filename || `${r.jobRef || 'QA'}_Report.pdf`, win);
+    const blob = await resolveQaBlob(r);
+    presentPdf(blob, r.filename || `${r.qaRef || 'QA_Report'}.pdf`, win);
   } catch (e) {
     if (win) win.close();
     toast('Could not open QA PDF: ' + e.message);
   }
 }
 
-async function shareQaReportPdf(reportId) {
+async function shareQaPdfById(reportId) {
   try {
     const r = await get('qaReports', reportId);
     if (!r) throw new Error('QA report not found');
-    const blob = await resolveQaPdfBlob(r);
+    const blob = await resolveQaBlob(r);
     await shareOrDownloadFile(
       blob,
-      r.filename || `${r.jobRef || 'QA'}_Report.pdf`,
-      `QA Report ${r.jobRef || ''}`
+      r.filename || `${r.qaRef || 'QA_Report'}.pdf`,
+      `QA Report ${r.qaRef || ''}`
     );
   } catch (e) {
     toast('Could not share QA PDF: ' + e.message);
@@ -927,8 +773,8 @@ async function shareQaReportPdf(reportId) {
 function confirmDeleteQaReport(reportId) {
   modal(`
     <h2>Delete QA Report?</h2>
-    <p class="m">Remove this Quality Assurance report? The linked task and quote remain untouched.</p>
-    <button type="button" class="danger w" onclick="deleteQaReport('${esc(reportId)}')">Yes, Delete Report</button>
+    <p class="m">Remove this QA assessment report? The task and quotation remain untouched.</p>
+    <button type="button" class="danger w" onclick="deleteQaReport('${esc(reportId)}')">Yes, Delete QA Report</button>
   `);
 }
 
@@ -947,7 +793,7 @@ async function deleteQaReport(reportId) {
     if (params.taskId) {
       const tId = params.taskId;
       clearQueryParams();
-      await openQaAssessmentBuilder(tId);
+      await openQaAssessmentModal(tId);
     }
   } catch (e) {
     console.error('QA boot error:', e);
