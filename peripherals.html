@@ -1,0 +1,412 @@
+<!DOCTYPE html>
+<html lang="en-GB">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="theme-color" content="#0f5c5c">
+<title>Handyman Manager · Peripherals &amp; Setup</title>
+<style>
+:root{--ink:#14232f;--bg:#e9edef;--card:#fff;--ac:#0f5c5c;--tape:#f2c230;--mut:#5b6b76;--bad:#b3261e;--ok:#1b7a43;--ln:#cfd7dc}
+*{box-sizing:border-box}
+body{margin:0;font:16px/1.45 system-ui,-apple-system,"Segoe UI",sans-serif;background:var(--bg);color:var(--ink);padding-bottom:calc(82px + env(safe-area-inset-bottom))}
+header{background:var(--ac);color:white;padding:calc(12px + env(safe-area-inset-top)) 16px 12px;border-bottom:5px solid var(--tape);position:sticky;top:0;z-index:5;display:flex;align-items:center;justify-content:space-between;gap:12px}
+header .brand-wrap{display:flex;align-items:center;gap:10px;min-width:0}
+header img.hdr-logo{width:38px;height:38px;object-fit:contain;background:white;border-radius:7px;padding:2px;flex-shrink:0}
+header b{font-size:17px;display:block;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+header small{display:block;opacity:.88;font-size:12px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.sync-pill{font-size:11px;font-weight:700;padding:4px 9px;border-radius:999px;background:rgba(255,255,255,.16);color:white;white-space:nowrap;flex-shrink:0;cursor:pointer}
+.sync-pill.online{background:#1b7a43}
+main{max-width:780px;margin:auto;padding:14px}
+.c{background:var(--card);border:1px solid var(--ln);border-radius:12px;padding:14px;margin-bottom:12px;box-shadow:0 1px 2px rgba(20,35,47,.04)}
+h2,h3{margin:0 0 8px}
+.m{color:var(--mut);font-size:14px}
+.small{font-size:12px;color:var(--mut)}
+button{font:inherit;min-height:46px;padding:8px 14px;border:0;border-radius:8px;background:var(--ac);color:white;font-weight:650;margin:3px 3px 3px 0;cursor:pointer}
+button.secondary{background:white;color:var(--ac);border:2px solid var(--ac)}
+button.danger{background:#9e2525}
+button.w{width:100%}
+input,select,textarea{font:inherit;width:100%;min-height:45px;padding:9px;border:1px solid #9aa8b0;border-radius:8px;margin:3px 0 10px;background:white;color:var(--ink)}
+textarea{min-height:82px}
+label{font-weight:650;font-size:14px;display:block}
+input[type=checkbox]{width:auto;min-height:auto;margin-right:8px}
+.inline-check{display:flex;align-items:center;gap:6px;font-weight:600;font-size:14px;margin:6px 0 12px;cursor:pointer}
+pre.sql-box{background:#14232f;color:#e6eef2;padding:12px;border-radius:10px;font-size:12px;line-height:1.45;overflow:auto;max-height:280px;border:1px solid #2b4152}
+.logo-preview{max-height:70px;max-width:190px;object-fit:contain;border:1px solid var(--ln);border-radius:8px;padding:6px;background:#fff;margin-bottom:8px;display:block}
+nav{position:fixed;bottom:0;left:0;right:0;display:flex;background:white;border-top:1px solid var(--ln);padding-bottom:env(safe-area-inset-bottom);z-index:6}
+nav button{flex:1;background:none;color:var(--mut);border-radius:0;margin:0;min-height:58px;font-size:12px;padding:4px}
+nav button.on{color:var(--ac);box-shadow:inset 0 3px var(--tape);font-weight:700}
+#toast{position:fixed;left:50%;transform:translateX(-50%);bottom:88px;background:#14232f;color:white;padding:10px 15px;border-radius:8px;display:none;z-index:10;max-width:90%;text-align:center}
+dialog{width:min(650px,96%);max-height:92vh;border:0;border-radius:14px;padding:16px;overflow:auto}
+dialog::backdrop{background:#0008}
+</style>
+</head>
+<body>
+<main id="view"></main>
+
+<script src="core.js"></script>
+<script>
+"use strict";
+
+const SUPABASE_SETUP_SQL = `-- Run once in Supabase SQL Editor to create tables, PDF storage bucket, and policies
+create table if not exists public.customers (
+  id text primary key,
+  data jsonb not null default '{}'::jsonb,
+  updated_at timestamptz not null default now()
+);
+create table if not exists public.jobs (
+  id text primary key,
+  data jsonb not null default '{}'::jsonb,
+  updated_at timestamptz not null default now()
+);
+create table if not exists public.qaReports (
+  id text primary key,
+  data jsonb not null default '{}'::jsonb,
+  updated_at timestamptz not null default now()
+);
+create table if not exists public.quotes (
+  id text primary key,
+  data jsonb not null default '{}'::jsonb,
+  updated_at timestamptz not null default now()
+);
+create table if not exists public.invoices (
+  id text primary key,
+  data jsonb not null default '{}'::jsonb,
+  updated_at timestamptz not null default now()
+);
+create table if not exists public.payments (
+  id text primary key,
+  data jsonb not null default '{}'::jsonb,
+  updated_at timestamptz not null default now()
+);
+create table if not exists public.docs (
+  id text primary key,
+  data jsonb not null default '{}'::jsonb,
+  updated_at timestamptz not null default now()
+);
+create table if not exists public.templates (
+  id text primary key,
+  data jsonb not null default '{}'::jsonb,
+  updated_at timestamptz not null default now()
+);
+create table if not exists public.settings (
+  id text primary key,
+  data jsonb not null default '{}'::jsonb,
+  updated_at timestamptz not null default now()
+);
+create table if not exists public.counters (
+  id text primary key,
+  data jsonb not null default '{}'::jsonb,
+  updated_at timestamptz not null default now()
+);
+
+do $$
+declare
+  tbl text;
+  tables text[] := array[
+    'customers','jobs','qaReports','quotes','invoices',
+    'payments','docs','templates','settings','counters'
+  ];
+begin
+  foreach tbl in array tables loop
+    execute format('alter table public.%I enable row level security;', tbl);
+    execute format('drop policy if exists "allow_all_anon_%I" on public.%I;', tbl, tbl);
+    execute format(
+      'create policy "allow_all_anon_%I" on public.%I for all to anon, authenticated using (true) with check (true);',
+      tbl, tbl
+    );
+  end loop;
+end $$;
+
+insert into storage.buckets (id, name, public)
+values ('documents', 'documents', true)
+on conflict (id) do update set public = true;
+
+drop policy if exists "documents_bucket_select" on storage.objects;
+drop policy if exists "documents_bucket_insert" on storage.objects;
+drop policy if exists "documents_bucket_update" on storage.objects;
+drop policy if exists "documents_bucket_delete" on storage.objects;
+
+create policy "documents_bucket_select"
+on storage.objects for select to anon, authenticated
+using (bucket_id = 'documents');
+
+create policy "documents_bucket_insert"
+on storage.objects for insert to anon, authenticated
+with check (bucket_id = 'documents');
+
+create policy "documents_bucket_update"
+on storage.objects for update to anon, authenticated
+using (bucket_id = 'documents') with check (bucket_id = 'documents');
+
+create policy "documents_bucket_delete"
+on storage.objects for delete to anon, authenticated
+using (bucket_id = 'documents');`;
+
+let pendingLogoData = null;
+
+async function renderPeripheralsPage() {
+  await loadBrand();
+  await loadSupabaseConfig();
+  pendingLogoData = brand.logo || '';
+
+  const counts = await Promise.all(
+    APP_CONFIG.stores.map(async (s) => ({ store: s, count: (await all(s)).length }))
+  );
+  const totalRecords = counts.reduce((sum, item) => sum + item.count, 0);
+
+  $('#view').innerHTML = `
+    <div class="c">
+      <h2>Peripherals &amp; Settings</h2>
+      <p class="m">Centralised business branding, Supabase cloud sync + PDF storage setup, and local backup/restore.</p>
+    </div>
+
+    <!-- Centralised Branding Panel -->
+    <div class="c">
+      <h3>Centralised Branding Panel</h3>
+      <p class="m">Used across headers, contracts, quotations, QA reports, and invoices.</p>
+      <form id="brandForm" onsubmit="event.preventDefault();saveBrandSettings()">
+        <label>Business Name</label>
+        <input name="name" value="${esc(brand.name || '')}" required placeholder="e.g. Bournemouth & Poole Property Care">
+
+        <label>Slogan / Tagline</label>
+        <input name="slogan" value="${esc(brand.slogan || '')}" placeholder="e.g. Reliable Property Maintenance & Repairs">
+
+        <label>Accent Colour</label>
+        <input name="color" type="color" value="${esc(brand.color || '#0f5c5c')}" style="height:48px;padding:4px">
+
+        <label>Business Logo</label>
+        <input type="file" accept="image/*" onchange="previewBrandLogo(this)">
+        <img id="brandLogoPreview" class="logo-preview" src="${esc(pendingLogoData)}" style="display:${pendingLogoData ? 'block' : 'none'}" alt="Logo Preview">
+        ${
+          pendingLogoData
+            ? `<button type="button" class="secondary" style="min-height:36px;padding:4px 10px;font-size:13px" onclick="clearBrandLogo()">Remove Logo</button>`
+            : ''
+        }
+
+        <label style="margin-top:10px">Phone Number</label>
+        <input name="phone" type="tel" value="${esc(brand.phone || '')}" placeholder="e.g. 01202 000000">
+
+        <label>Email Address</label>
+        <input name="email" type="email" value="${esc(brand.email || '')}" placeholder="e.g. info@example.co.uk">
+
+        <label>Website</label>
+        <input name="website" value="${esc(brand.website || '')}" placeholder="e.g. https://example.co.uk">
+
+        <label>Business Address</label>
+        <textarea name="address" placeholder="Street, town, postcode">${esc(brand.address || '')}</textarea>
+
+        <label>Bank Transfer Details (for Invoices)</label>
+        <textarea name="bankDetails" placeholder="Account name, sort code, account number">${esc(brand.bankDetails || '')}</textarea>
+
+        <label>PDF Footer Text</label>
+        <input name="footer" value="${esc(brand.footer || '')}" placeholder="e.g. Thank you for your business">
+
+        <button type="submit" class="w" style="margin-top:6px">Save Branding Settings</button>
+      </form>
+    </div>
+
+    <!-- Supabase Project Setup -->
+    <div class="c">
+      <h3>Supabase Sync &amp; PDF Storage</h3>
+      <p class="m">Enter your Supabase <strong>Project URL</strong> and <strong>Anon Key</strong> after running the setup SQL once in Supabase.</p>
+      <form id="supabaseForm" onsubmit="event.preventDefault();saveSupabaseSettings()">
+        <label>Supabase Project URL</label>
+        <input name="url" type="url" value="${esc(supabaseConfig.url || '')}" placeholder="https://xxxxxxxxxxxx.supabase.co">
+
+        <label>Supabase Anon Key</label>
+        <input name="anonKey" type="password" value="${esc(supabaseConfig.anonKey || '')}" placeholder="eyJhbGciOiJIUzI1NiIsInR5cCI6...">
+
+        <label class="inline-check">
+          <input type="checkbox" name="autoSync" ${supabaseConfig.autoSync !== false ? 'checked' : ''}>
+          <span>Automatically sync changes &amp; load updates</span>
+        </label>
+
+        <div style="display:flex;gap:8px;flex-wrap:wrap">
+          <button type="submit" style="flex:1">Save Supabase Config</button>
+          <button type="button" class="secondary" style="flex:1" onclick="syncWithSupabase()">Sync Now</button>
+        </div>
+      </form>
+      ${
+        supabaseConfig.lastSync
+          ? `<div class="small" style="margin-top:8px">Last synced: ${new Date(supabaseConfig.lastSync).toLocaleString('en-GB')}</div>`
+          : ''
+      }
+    </div>
+
+    <!-- One-Click SQL Setup Script -->
+    <div class="c">
+      <h3>Supabase SQL Setup Script (Tables, Bucket &amp; Policies)</h3>
+      <p class="m">Copy or download this SQL script, paste it into your Supabase project's <strong>SQL Editor</strong>, and run it once.</p>
+      <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:8px">
+        <button type="button" onclick="copySetupSql()">Copy SQL Script</button>
+        <button type="button" class="secondary" onclick="downloadSetupSql()">Download .sql File</button>
+      </div>
+      <pre class="sql-box" id="sqlScriptBox">${esc(SUPABASE_SETUP_SQL)}</pre>
+    </div>
+
+    <!-- Backup & Restore -->
+    <div class="c">
+      <h3>Local Data Backup &amp; Restore</h3>
+      <p class="m">Total local records across all stores: <b>${totalRecords}</b></p>
+      <button type="button" class="w" onclick="exportBackupJson()">Download Full JSON Backup</button>
+      <label style="margin-top:10px">Restore from JSON Backup File</label>
+      <input type="file" accept="application/json,.json" onchange="restoreBackupJson(this)">
+    </div>
+  `;
+}
+
+async function previewBrandLogo(input) {
+  const file = input.files?.[0];
+  if (!file) return;
+  try {
+    pendingLogoData = await fileData(file);
+    const img = $('#brandLogoPreview');
+    if (img) {
+      img.src = pendingLogoData;
+      img.style.display = 'block';
+    }
+    toast('Logo ready — click "Save Branding Settings" to apply');
+  } catch (e) {
+    toast('Could not load logo: ' + e.message);
+  } finally {
+    input.value = '';
+  }
+}
+
+function clearBrandLogo() {
+  pendingLogoData = '';
+  const img = $('#brandLogoPreview');
+  if (img) {
+    img.src = '';
+    img.style.display = 'none';
+  }
+  toast('Logo cleared — click "Save Branding Settings" to apply');
+}
+
+async function saveBrandSettings() {
+  const f = formData('brandForm');
+  const updated = {
+    id: 'brand',
+    name: (f.name || DEFAULT_BRAND.name).trim(),
+    slogan: (f.slogan || '').trim(),
+    color: f.color || '#0f5c5c',
+    logo: pendingLogoData || '',
+    phone: (f.phone || '').trim(),
+    email: (f.email || '').trim(),
+    website: (f.website || '').trim(),
+    address: (f.address || '').trim(),
+    bankDetails: (f.bankDetails || '').trim(),
+    footer: (f.footer || '').trim(),
+    updatedAt: Date.now()
+  };
+
+  await put('settings', updated);
+  await loadBrand();
+  toast('Branding saved across all pages & PDFs');
+  await renderPeripheralsPage();
+}
+
+async function saveSupabaseSettings() {
+  const form = $('#supabaseForm');
+  const f = formData(form);
+  const autoSync = Boolean(form?.querySelector('[name="autoSync"]')?.checked);
+
+  supabaseConfig = {
+    id: 'supabase',
+    url: (f.url || '').trim(),
+    anonKey: (f.anonKey || '').trim(),
+    autoSync,
+    lastSync: supabaseConfig.lastSync || '',
+    updatedAt: Date.now()
+  };
+
+  await put('settings', supabaseConfig, { skipSync: true });
+  updateSyncBadge();
+  toast('Supabase settings saved');
+
+  if (isSupabaseConfigured() && autoSync) {
+    await syncWithSupabase();
+  }
+}
+
+async function copySetupSql() {
+  try {
+    await navigator.clipboard.writeText(SUPABASE_SETUP_SQL);
+    toast('SQL script copied to clipboard');
+  } catch (e) {
+    const ta = document.createElement('textarea');
+    ta.value = SUPABASE_SETUP_SQL;
+    document.body.appendChild(ta);
+    ta.select();
+    document.execCommand('copy');
+    ta.remove();
+    toast('SQL script copied');
+  }
+}
+
+function downloadSetupSql() {
+  saveText(SUPABASE_SETUP_SQL, 'supabase_handyman_setup.sql', 'text/sql');
+  toast('Downloaded supabase_handyman_setup.sql');
+}
+
+async function exportBackupJson() {
+  const payload = {
+    exportedAt: new Date().toISOString(),
+    dbName: APP_CONFIG.dbName,
+    stores: {}
+  };
+  for (const storeName of APP_CONFIG.stores) {
+    payload.stores[storeName] = await all(storeName);
+  }
+  saveText(
+    JSON.stringify(payload, null, 2),
+    `handyman_backup_${today()}.json`,
+    'application/json'
+  );
+  toast('Backup JSON downloaded');
+}
+
+async function restoreBackupJson(input) {
+  const file = input.files?.[0];
+  if (!file) return;
+  try {
+    const text = await file.text();
+    const parsed = JSON.parse(text);
+    const storeMap = parsed.stores || parsed;
+    let restoredCount = 0;
+
+    for (const storeName of APP_CONFIG.stores) {
+      const items = storeMap[storeName];
+      if (!Array.isArray(items)) continue;
+      for (const item of items) {
+        if (item && item.id) {
+          await put(storeName, { ...item, updatedAt: item.updatedAt || Date.now() });
+          restoredCount++;
+        }
+      }
+    }
+
+    await loadBrand();
+    await loadSupabaseConfig();
+    toast(`Restored ${restoredCount} records`);
+    await renderPeripheralsPage();
+  } catch (e) {
+    console.error(e);
+    toast('Invalid backup file: ' + e.message);
+  } finally {
+    input.value = '';
+  }
+}
+
+(async () => {
+  try {
+    await initCore('peripherals');
+    await renderPeripheralsPage();
+  } catch (e) {
+    console.error('Peripherals boot error:', e);
+  }
+})();
+</script>
+</body>
+</html>
