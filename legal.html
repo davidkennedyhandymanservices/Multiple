@@ -40,6 +40,8 @@ input[type=checkbox]{width:auto;min-height:auto;margin-right:8px}
 .clause-box{border:1px solid var(--ln);border-radius:9px;padding:10px;margin:8px 0;background:#fbfcfd}
 .clause-box b{display:block;font-size:13px;color:var(--ac);margin-bottom:4px}
 .clause-box p{margin:0;font-size:13px;white-space:pre-line}
+.std-list{display:flex;gap:6px;flex-wrap:wrap;margin:6px 0 12px}
+.std-badge{background:#eef4f4;color:var(--ac);border:1px solid #c3d5d5;border-radius:999px;padding:4px 10px;font-size:12px;font-weight:700}
 canvas.signature{width:100%;height:130px;border:2px dashed #9aa8b0;border-radius:8px;touch-action:none;background:#fff}
 nav{position:fixed;bottom:0;left:0;right:0;display:flex;background:white;border-top:1px solid var(--ln);padding-bottom:env(safe-area-inset-bottom);z-index:6}
 nav button{flex:1;background:none;color:var(--mut);border-radius:0;margin:0;min-height:58px;font-size:12px;padding:4px}
@@ -55,6 +57,109 @@ dialog::backdrop{background:#0008}
 <script src="core.js"></script>
 <script>
 "use strict";
+
+const TASK_BRITISH_STANDARDS = {
+  'Replacing silicone sealant': [
+    'BS 8000-16 (Workmanship on site - sealing)',
+    'BS EN ISO 11600 (Sealants for building construction)',
+    'BS 7671 (Proximity to wet/electrical fittings)'
+  ],
+  'Garden gate repair': [
+    'BS 8214 (Timber & joinery)',
+    'BS EN 12604 (Gate mechanical safety)',
+    'BS 7671 (Where electric/latch controls apply)'
+  ],
+  'Hanging shelves or hooks': [
+    'BS 8214 (Joinery & fixings)',
+    'BS 7671 (Safe zones away from cables)',
+    'BS EN 1991 (Applied load safety)'
+  ],
+  'Flat-pack furniture assembly': [
+    'BS EN 12520 / BS EN 14749 (Domestic furniture safety)',
+    'BS 8214 (Joinery & assembly)',
+    'BS EN 1991 (Tip-over & stability restraint)'
+  ],
+  'Painting and decorating': [
+    'BS 6150 (Painting of buildings - code of practice)',
+    'BS 8000-12 (Workmanship - decorative finishes)',
+    'BS EN 13300 (Water-borne coatings performance)'
+  ],
+  'Minor plumbing repair': [
+    'BS EN 806 (Water supply installations)',
+    'BS 6700 (Building services engineering)',
+    'Water Supply (Water Fittings) Regulations 1999'
+  ],
+  'Door adjustment or repair': [
+    'BS 8214 (Timber-based doorsets & ironmongery)',
+    'BS EN 1935 (Single-axis hinges)',
+    'BS 9999 / Approved Document B (Where fire/escape doors apply)'
+  ],
+  'Curtain pole or blind installation': [
+    'BS 8214 (Fixings & joinery)',
+    'BS EN 13120 (Internal blinds - child safety & cord/chain devices)',
+    'BS 7671 (Safe zones away from cables)'
+  ],
+  'Tile or grout repair': [
+    'BS 5385 (Wall and floor tiling)',
+    'BS 8000-11 (Workmanship - ceramic, natural stone and terrazzo tiling)',
+    'BS EN 12004 / BS EN 13888 (Adhesives & grouts)'
+  ],
+  'Fence panel repair': [
+    'BS 1722 (Fences - specification)',
+    'BS 8214 (Timber preservation & fixings)',
+    'BS EN 1991 (Wind load & post stability)'
+  ],
+  'Lock or handle replacement': [
+    'BS 3621 / BS 8621 / BS 10621 (Lock security standards)',
+    'BS 8214 (Door hardware & mortising)',
+    'BS EN 1906 (Lever handles & knob furniture)'
+  ],
+  'Gutter or downpipe minor repair': [
+    'BS EN 12056 (Gravity drainage systems inside buildings)',
+    'BS EN 607 (Eaves gutters & rainwater fittings)',
+    'BS 8000-13 (Workmanship - above-ground drainage)'
+  ],
+  'Picture or mirror hanging': [
+    'BS 8214 (Fixings & wall support)',
+    'BS 7671 (Safe zones away from cables)',
+    'BS EN 12150 / BS EN 1036 (Mirror safety & backing where applicable)'
+  ]
+};
+
+function resolveBritishStandards(taskObj) {
+  const category = taskObj?.task || '';
+  if (TASK_BRITISH_STANDARDS[category]) {
+    return [...TASK_BRITISH_STANDARDS[category]];
+  }
+  const text = `${category} ${taskObj?.description || ''}`.toLowerCase();
+  for (const [key, stds] of Object.entries(TASK_BRITISH_STANDARDS)) {
+    const words = key.toLowerCase().split(/\s+/).filter((w) => w.length > 4);
+    if (words.some((w) => text.includes(w))) {
+      return [...stds];
+    }
+  }
+  return [
+    'BS 8214 (General joinery & site fixings)',
+    'BS 7671 (Safe zones & services awareness)',
+    'Applicable UK Trade & British Standards'
+  ];
+}
+
+/**
+ * Extracts the core reference number (e.g. "121" from "121", "quo121", "con121", or "TSK-121")
+ * so every document uses the exact same reference number with its own prefix.
+ */
+function coreNumberFromAny(raw) {
+  const s = String(raw || '').trim();
+  const match = s.match(/(\d+)/);
+  if (match) return match[1];
+  return s.replace(/^(quo|con|qa|inv|tsk|job|dkh[-a-z]*)[-_\s]*/i, '').trim() || '100';
+}
+
+function makePrefixedRef(prefix, rawRef) {
+  const num = coreNumberFromAny(rawRef);
+  return `${prefix}${num}`;
+}
 
 let legalSigState = {};
 
@@ -76,25 +181,24 @@ function buildTwelveClauses(data) {
     .filter(Boolean)
     .join(' - ') || '[Client Contact Details]';
   const siteAddr = (data.customerAddress || '[Site/Property Address]').replace(/\n/g, ', ').trim();
-  const quoteInfo = data.quoteNumber
-    ? `${data.quoteNumber}${data.quoteDate ? ` dated ${dateFmt(data.quoteDate)}` : ''}${data.validUntil ? ` (valid until ${dateFmt(data.validUntil)})` : ''}`
-    : 'the approved quotation';
+  const quoteRef = data.quoteRef || makePrefixedRef('quo', data.contractRef);
+  const standardsSummary = (data.standards || []).join('; ') || 'applicable British Standards';
 
   return [
     {
       num: '1',
       title: 'Parties Identification',
-      body: `This Agreement is entered into between ${contractor.businessName}, with contact details including ${contractor.contactSummary} (referred to as the Contractor), and ${clientName}, with contact details including ${clientContact} (referred to as the Client). The services detailed in this agreement will be performed at the following location: ${siteAddr}.\nFor the purposes of this Agreement, "Contractor" refers to ${contractor.businessName}. "Client" refers to the individual or entity commissioning the work. "Services" refers to the specific tasks detailed in the applicable Schedules of Scope of Work. "Schedules" refers to the dynamic annexes containing task-specific details, material specifications, and compliance standards.`
+      body: `This Agreement is entered into between ${contractor.businessName}, with contact details including ${contractor.contactSummary} (referred to as the Contractor), and ${clientName}, with contact details including ${clientContact} (referred to as the Client). The services detailed in this agreement will be performed at the following location: ${siteAddr}.\nFor the purposes of this Agreement, "Contractor" refers to ${contractor.businessName}. "Client" refers to the individual or entity commissioning the work. "Services" refers to the specific tasks detailed in the Schedule of Scope of Work at the end of this Agreement. "Schedule" refers to the annexed Schedule of Scope of Work containing task-specific details, material specifications, and compliance standards.`
     },
     {
       num: '2',
       title: 'Scope of Work',
-      body: `The Contractor shall carry out the services described in the applicable Schedules of Scope of Work (referencing ${quoteInfo}), which are incorporated into this Agreement by reference. The specific tasks, boundaries, material specifications, and timelines shall be dynamically populated from the approved quotation and detailed within each respective Schedule. Any variation or modification to the defined scope, or rescheduling requests by either party, must be agreed upon in writing at least 48 hours prior to the scheduled commencement of the affected work to allow for material and schedule adjustments.`
+      body: `The Contractor shall carry out the services described in the Schedule of Scope of Work attached at the end of this Agreement (referencing Quotation ${quoteRef}), which is incorporated into this Agreement by reference. The specific tasks, boundaries, material specifications, and timelines are set out in that Schedule. Any variation or modification to the defined scope, or rescheduling requests by either party, must be agreed upon in writing at least 48 hours prior to the scheduled commencement of the affected work to allow for material and schedule adjustments.`
     },
     {
       num: '3',
       title: 'Payment Terms',
-      body: `The Client agrees to pay the fees specified in the approved quotation (${GBP(data.totalAmount)}) and detailed within the applicable Schedules of Scope of Work. Payment shall be due strictly within the timeframe stipulated on each respective invoice. Any required deposit must be received prior to the commencement of work. Late payments may incur statutory interest under the Late Payment of Commercial Debts (Interest) Act 1998 where applicable. Method of payment shall be as specified on the invoice.`
+      body: `The Client agrees to pay the fees specified in Quotation ${quoteRef} (${GBP(data.totalAmount)}) and detailed within the Schedule of Scope of Work. Payment shall be due strictly within the timeframe stipulated on each respective invoice. Any required deposit must be received prior to the commencement of work. Late payments may incur statutory interest under the Late Payment of Commercial Debts (Interest) Act 1998 where applicable. Method of payment shall be as specified on the invoice.`
     },
     {
       num: '4',
@@ -104,12 +208,12 @@ function buildTwelveClauses(data) {
     {
       num: '5',
       title: 'Mutual Obligations',
-      body: `The Contractor agrees to perform the Services with reasonable care and skill, strictly adhering to relevant British Standards and codes of practice applicable to each specific task. The Client agrees to provide necessary site access, ensure a safe working environment, and cooperate timely with all reasonable requests. Both parties agree to maintain open communication and act in good faith.`
+      body: `The Contractor agrees to perform the Services with reasonable care and skill, strictly adhering to relevant British Standards (${standardsSummary}) and codes of practice applicable to each specific task. The Client agrees to provide necessary site access, ensure a safe working environment, and cooperate timely with all reasonable requests. Both parties agree to maintain open communication and act in good faith.`
     },
     {
       num: '6',
       title: 'Limitation of Liability',
-      body: `Except in respect of death or personal injury caused by the Contractor's negligence, the Contractor's total aggregate liability arising under or in connection with this Agreement, whether in contract, tort (including negligence), breach of statutory duty, or otherwise, shall be strictly limited to the total value of the fees payable under the applicable Schedule of Scope of Work. The Contractor shall not be liable for any indirect, consequential, or unforeseeable losses, including but not limited to pre-existing conditions, mismatch of existing materials, or indirect property damage.`
+      body: `Except in respect of death or personal injury caused by the Contractor's negligence, the Contractor's total aggregate liability arising under or in connection with this Agreement, whether in contract, tort (including negligence), breach of statutory duty, or otherwise, shall be strictly limited to the total value of the fees payable under the Schedule of Scope of Work. The Contractor shall not be liable for any indirect, consequential, or unforeseeable losses, including but not limited to pre-existing conditions, mismatch of existing materials, or indirect property damage.`
     },
     {
       num: '7',
@@ -124,7 +228,7 @@ function buildTwelveClauses(data) {
     {
       num: '9',
       title: 'Warranties, Defects, and Quality Assurance',
-      body: `The Contractor warrants that the Services will be provided with reasonable care and skill and in accordance with applicable British Standards. Upon completion, a joint quality inspection shall be conducted by the Contractor and the Client. The results shall be recorded within the platform's Quality Assurance system, generating a formal Quality Inspection Certificate. The Client must notify the Contractor in writing of any visible defects or snags within 7 days of inspection. The Contractor agrees to rectify any notified defects resulting from faulty workmanship or materials within a reasonable timeframe at no additional cost. This warranty does not cover fair wear and tear, damage caused by the Client or third parties, or pre-existing conditions.`
+      body: `The Contractor warrants that the Services will be provided with reasonable care and skill and in accordance with applicable British Standards (${standardsSummary}). Upon completion, a joint quality inspection shall be conducted by the Contractor and the Client. The results shall be recorded within the platform's Quality Assurance system, generating a formal Quality Inspection Certificate. The Client must notify the Contractor in writing of any visible defects or snags within 7 days of inspection. The Contractor agrees to rectify any notified defects resulting from faulty workmanship or materials within a reasonable timeframe at no additional cost. This warranty does not cover fair wear and tear, damage caused by the Client or third parties, or pre-existing conditions.`
     },
     {
       num: '10',
@@ -171,7 +275,7 @@ async function renderLegalPage() {
     <div class="c">
       <h2>Legal Contracts</h2>
       <p class="m">
-        Generate a 12-clause contract and <strong>Schedule of Scope of Work</strong> from a <strong>task reference</strong> and its <strong>quotation details</strong>, with dual signatures for Contractor and Client.
+        Create a 12-clause contract with the <strong>Schedule of Scope of Work</strong> at the end, relevant <strong>British Standards</strong>, shared reference prefix (e.g. <code>con121</code>), and dual signatures.
       </p>
       <button type="button" class="w" onclick="openContractBuilder()">+ Create Contract from Task &amp; Quote</button>
     </div>
@@ -183,7 +287,7 @@ async function renderLegalPage() {
           ? docs
               .map((d) => {
                 const isSigned = d.status === 'Signed';
-                const conRef = d.contractRef || formatDocRef('con', d.jobRef || d.quoteNumber || '');
+                const conRef = d.contractRef || makePrefixedRef('con', d.quoteNumber || d.jobRef);
                 return `
                   <div class="doc-card">
                     <div style="display:flex;justify-content:space-between;align-items:center;gap:8px">
@@ -191,11 +295,14 @@ async function renderLegalPage() {
                       <span class="tag ${isSigned ? 'ok' : ''}">${esc(d.status || 'Draft')}</span>
                     </div>
                     <div class="m" style="margin-top:4px">
-                      Contract Ref: <b>${esc(conRef)}</b>
-                      ${d.quoteNumber ? ` - Quote Ref: <b>${esc(d.quoteNumber)}</b>` : ''}
+                      Ref: <b>${esc(conRef)}</b>
+                      ${d.quoteNumber ? ` - Quote: <b>${esc(d.quoteNumber)}</b>` : ''}
                       ${d.totalAmount !== undefined ? ` - ${GBP(d.totalAmount)}` : ''}
                     </div>
-                    <div class="small">Updated ${new Date(d.updatedAt || d.created || Date.now()).toLocaleDateString('en-GB')}</div>
+                    <div class="small">
+                      Signed Date: ${dateFmt(d.contractData?.signedDate || '') || 'Pending'}
+                      ${d.contractData?.workStartDate ? ` - Planned Start: ${dateFmt(d.contractData.workStartDate)}` : ''}
+                    </div>
                     <div class="doc-actions">
                       <button type="button" onclick="openLegalDocPdf('${esc(d.id)}')">View / Save PDF</button>
                       <button type="button" class="secondary" onclick="shareLegalDoc('${esc(d.id)}')">Share</button>
@@ -216,17 +323,16 @@ async function renderLegalPage() {
           ? tasks
               .map((t) => {
                 const q = quoteByTask.get(t.id);
-                const refCode = extractRefCode(q?.documentNumber || t.ref);
-                const qRef = q?.documentNumber || formatDocRef('quo', refCode);
-                const cRef = formatDocRef('con', refCode);
+                const qRef = makePrefixedRef('quo', q?.documentNumber || t.ref);
+                const cRef = makePrefixedRef('con', q?.documentNumber || t.ref);
+                const stds = resolveBritishStandards(t);
                 return `
                   <div class="row">
                     <div>
                       <b>${esc(cRef)} - ${esc(t.customerName)}</b>
                       <div class="m">${esc(t.task || t.description)}</div>
-                      <div class="small">
-                        Quote: ${esc(qRef)} - ${GBP(q ? q.total : t.amount)}
-                      </div>
+                      <div class="small">Quote: ${esc(qRef)} - ${GBP(q ? q.total : t.amount)}</div>
+                      <div class="small">Standards: ${esc(stds.join(', '))}</div>
                     </div>
                     <button type="button" onclick="openContractBuilder('${esc(t.id)}')">Create Contract</button>
                   </div>`;
@@ -252,9 +358,9 @@ async function openContractBuilder(preselectedTaskId = '', overrideData = null, 
   const task = ctx?.task || {};
   const quote = ctx?.quote || null;
 
-  const refCode = extractRefCode(quote?.documentNumber || task.ref || existingDoc?.contractRef);
-  const quoteRef = quote?.documentNumber || formatDocRef('quo', refCode);
-  const contractRef = formatDocRef('con', refCode);
+  const quoteRef = makePrefixedRef('quo', quote?.documentNumber || task.ref || existingDoc?.contractRef);
+  const contractRef = makePrefixedRef('con', quote?.documentNumber || task.ref || existingDoc?.contractRef);
+  const standards = resolveBritishStandards(task);
 
   const quoteScheduleLines = quote?.items?.length
     ? quote.items
@@ -269,14 +375,13 @@ async function openContractBuilder(preselectedTaskId = '', overrideData = null, 
     jobRef: task.ref || '',
     contractRef,
     quoteId: quote?.id || '',
-    quoteNumber: quoteRef,
-    quoteDate: quote?.createdDate || '',
-    validUntil: quote?.validUntil || '',
+    quoteRef,
     customerName: task.customerName || '',
     customerAddress: task.customerAddress || ctx?.customer?.address || '',
     customerPhone: ctx?.customer?.phone || '',
     customerEmail: ctx?.customer?.email || '',
-    scheduleTitle: `Schedule of Scope of Work (${contractRef})`,
+    standardsText: standards.join('\n'),
+    standards,
     scopeSummary: task.description || '',
     scheduleItemsText: quoteScheduleLines,
     scheduleNotes: quote?.notes || '',
@@ -284,15 +389,21 @@ async function openContractBuilder(preselectedTaskId = '', overrideData = null, 
     coolingOffWaiver: true,
     contractorSignatory: contractor.signatoryName,
     clientSignatory: task.customerName || '',
-    contractDate: today()
+    signedDate: today(),
+    workStartDate: ''
   };
 
   const d = { ...base, ...(overrideData || {}) };
+  const activeStandards = (d.standardsText || '')
+    .split('\n')
+    .map((s) => s.trim())
+    .filter(Boolean);
+  d.standards = activeStandards.length ? activeStandards : standards;
   const previewClauses = buildTwelveClauses(d);
 
   modal(`
     <h2>${existingDoc ? 'Edit' : 'Create'} Contract (${esc(d.contractRef)})</h2>
-    <p class="m">Built from <strong>Task Reference</strong>, <strong>Quote (${esc(d.quoteNumber)})</strong>, and the <strong>12 Contract Clauses</strong>.</p>
+    <p class="m">12 clauses followed by the <strong>Schedule of Scope of Work</strong> and <strong>British Standards</strong> at the end.</p>
 
     <form id="contractForm" onsubmit="event.preventDefault();saveContract('${esc(existingDoc?.id || '')}')">
       <label>Select Task</label>
@@ -305,14 +416,14 @@ async function openContractBuilder(preselectedTaskId = '', overrideData = null, 
           .join('')}
       </select>
 
-      <label>Contract Reference</label>
+      <label>Contract Reference (Shared Number)</label>
       <input name="contractRef" value="${esc(d.contractRef)}" readonly>
 
       <label>Contract Title</label>
       <input name="title" value="${esc(d.title)}" required>
 
       <label>Linked Quotation Reference &amp; Total</label>
-      <input name="quoteSummary" value="${esc(`${d.quoteNumber} - ${GBP(d.totalAmount)}`)}" readonly>
+      <input name="quoteSummary" value="${esc(`${d.quoteRef} - ${GBP(d.totalAmount)}`)}" readonly>
 
       <label>Client Full Name</label>
       <input name="customerName" value="${esc(d.customerName)}" required>
@@ -320,23 +431,11 @@ async function openContractBuilder(preselectedTaskId = '', overrideData = null, 
       <label>Site / Property Address</label>
       <textarea name="customerAddress">${esc(d.customerAddress)}</textarea>
 
-      <div class="c" style="background:#f8fafb">
-        <h3>Schedule of Scope of Work</h3>
-        <label>Schedule Heading</label>
-        <input name="scheduleTitle" value="${esc(d.scheduleTitle)}">
+      <label>Date Contract Signed / Agreed</label>
+      <input name="signedDate" type="date" value="${esc(d.signedDate || today())}" required>
 
-        <label>Task Scope &amp; Deliverables</label>
-        <textarea name="scopeSummary" required>${esc(d.scopeSummary)}</textarea>
-
-        <label>Quoted Items &amp; Schedule Breakdown</label>
-        <textarea name="scheduleItemsText">${esc(d.scheduleItemsText)}</textarea>
-
-        <label>Schedule Notes / Material &amp; Compliance Annex</label>
-        <textarea name="scheduleNotes">${esc(d.scheduleNotes)}</textarea>
-
-        <label>Contract Total (£)</label>
-        <input name="totalAmount" type="number" step="0.01" min="0" value="${Number(d.totalAmount) || 0}" required>
-      </div>
+      <label>Planned Start of Work Date (Optional)</label>
+      <input name="workStartDate" type="date" value="${esc(d.workStartDate || '')}">
 
       <label class="inline-check">
         <input type="checkbox" name="coolingOffWaiver" value="yes" ${d.coolingOffWaiver ? 'checked' : ''}>
@@ -345,7 +444,6 @@ async function openContractBuilder(preselectedTaskId = '', overrideData = null, 
 
       <div class="c">
         <h3>12 Contract Clauses Preview</h3>
-        <p class="small" style="margin:0 0 8px">All 12 clauses below are included in the generated contract PDF using your business branding and selected task/quote details.</p>
         ${previewClauses
           .map(
             (cl) => `
@@ -355,6 +453,28 @@ async function openContractBuilder(preselectedTaskId = '', overrideData = null, 
             </div>`
           )
           .join('')}
+      </div>
+
+      <div class="c" style="background:#f8fafb">
+        <h3>Schedule of Scope of Work &amp; British Standards (Placed at End of Contract)</h3>
+        <div class="std-list">
+          ${d.standards.map((s) => `<span class="std-badge">${esc(s)}</span>`).join('')}
+        </div>
+
+        <label>Relevant British Standards (one per line)</label>
+        <textarea name="standardsText">${esc(d.standardsText)}</textarea>
+
+        <label>Task Scope &amp; Deliverables</label>
+        <textarea name="scopeSummary" required>${esc(d.scopeSummary)}</textarea>
+
+        <label>Quoted Items &amp; Schedule Breakdown</label>
+        <textarea name="scheduleItemsText">${esc(d.scheduleItemsText)}</textarea>
+
+        <label>Schedule Notes &amp; Material Specifications</label>
+        <textarea name="scheduleNotes">${esc(d.scheduleNotes)}</textarea>
+
+        <label>Contract Total (£)</label>
+        <input name="totalAmount" type="number" step="0.01" min="0" value="${Number(d.totalAmount) || 0}" required>
       </div>
 
       <div class="c">
@@ -372,9 +492,6 @@ async function openContractBuilder(preselectedTaskId = '', overrideData = null, 
         <label>Client Signature</label>
         <canvas id="sigClient" class="signature"></canvas>
         <button type="button" class="secondary" onclick="clearLegalSig('sigClient')">Clear Client Signature</button>
-
-        <label style="margin-top:10px">Date</label>
-        <input name="contractDate" type="date" value="${esc(d.contractDate || today())}" required>
       </div>
 
       <button type="submit" class="w" style="margin-top:8px">Save Contract &amp; Generate PDF</button>
@@ -389,19 +506,25 @@ function collectContractFormValues() {
   const form = $('#contractForm');
   if (!form) return {};
   const f = formData(form);
+  const stdLines = (f.standardsText || '')
+    .split('\n')
+    .map((s) => s.trim())
+    .filter(Boolean);
   return {
     title: f.title || '',
     customerName: f.customerName || '',
     customerAddress: f.customerAddress || '',
-    scheduleTitle: f.scheduleTitle || '',
+    signedDate: f.signedDate || today(),
+    workStartDate: f.workStartDate || '',
+    coolingOffWaiver: Boolean(form.querySelector('[name="coolingOffWaiver"]')?.checked),
+    standardsText: f.standardsText || '',
+    standards: stdLines,
     scopeSummary: f.scopeSummary || '',
     scheduleItemsText: f.scheduleItemsText || '',
     scheduleNotes: f.scheduleNotes || '',
     totalAmount: Number(f.totalAmount) || 0,
-    coolingOffWaiver: Boolean(form.querySelector('[name="coolingOffWaiver"]')?.checked),
     contractorSignatory: f.contractorSignatory || '',
-    clientSignatory: f.clientSignatory || '',
-    contractDate: f.contractDate || today()
+    clientSignatory: f.clientSignatory || ''
   };
 }
 
@@ -410,9 +533,9 @@ async function switchContractTask(newTaskId, existingDocId = '') {
   const ctx = await getTaskQuoteContext(newTaskId);
   const task = ctx?.task || {};
   const quote = ctx?.quote || null;
-  const refCode = extractRefCode(quote?.documentNumber || task.ref);
-  const quoteRef = quote?.documentNumber || formatDocRef('quo', refCode);
-  const contractRef = formatDocRef('con', refCode);
+  const quoteRef = makePrefixedRef('quo', quote?.documentNumber || task.ref);
+  const contractRef = makePrefixedRef('con', quote?.documentNumber || task.ref);
+  const stds = resolveBritishStandards(task);
   const quoteLines = quote?.items?.length
     ? quote.items.map((item, idx) => `${idx + 1}. ${item.description} - ${GBP(item.amount)}`).join('\n')
     : `1. ${task.task || task.description || 'Agreed work'} - ${GBP(quote ? quote.total : task.amount)}`;
@@ -425,14 +548,13 @@ async function switchContractTask(newTaskId, existingDocId = '') {
       jobRef: task.ref || '',
       contractRef,
       quoteId: quote?.id || '',
-      quoteNumber: quoteRef,
-      quoteDate: quote?.createdDate || '',
-      validUntil: quote?.validUntil || '',
+      quoteRef,
       customerName: task.customerName || currentVals.customerName || '',
       customerAddress: task.customerAddress || ctx?.customer?.address || currentVals.customerAddress || '',
       customerPhone: ctx?.customer?.phone || '',
       customerEmail: ctx?.customer?.email || '',
-      scheduleTitle: `Schedule of Scope of Work (${contractRef})`,
+      standardsText: stds.join('\n'),
+      standards: stds,
       scopeSummary: task.description || currentVals.scopeSummary || '',
       scheduleItemsText: quoteLines,
       scheduleNotes: quote?.notes || '',
@@ -509,9 +631,9 @@ async function saveContract(existingDocId = '') {
   const old = existingDocId ? await get('docs', existingDocId) : null;
   const task = ctx.task;
   const quote = ctx.quote;
-  const refCode = extractRefCode(quote?.documentNumber || task.ref || old?.contractRef);
-  const contractRef = formatDocRef('con', refCode);
-  const quoteRef = quote?.documentNumber || formatDocRef('quo', refCode);
+  const contractRef = makePrefixedRef('con', quote?.documentNumber || task.ref || old?.contractRef);
+  const quoteRef = makePrefixedRef('quo', quote?.documentNumber || task.ref || old?.quoteRef);
+  const standards = vals.standards?.length ? vals.standards : resolveBritishStandards(task);
 
   const contractData = {
     title: (vals.title || `${contractRef} - ${task.task || task.description || 'Service Agreement'}`).trim(),
@@ -519,14 +641,13 @@ async function saveContract(existingDocId = '') {
     jobRef: task.ref,
     contractRef,
     quoteId: quote?.id || '',
-    quoteNumber: quoteRef,
-    quoteDate: quote?.createdDate || '',
-    validUntil: quote?.validUntil || '',
+    quoteRef,
     customerName: (vals.customerName || task.customerName).trim(),
     customerAddress: (vals.customerAddress || '').trim(),
     customerPhone: ctx.customer?.phone || '',
     customerEmail: ctx.customer?.email || '',
-    scheduleTitle: (vals.scheduleTitle || `Schedule of Scope of Work (${contractRef})`).trim(),
+    standards,
+    standardsText: standards.join('\n'),
     scopeSummary: (vals.scopeSummary || '').trim(),
     scheduleItemsText: (vals.scheduleItemsText || '').trim(),
     scheduleNotes: (vals.scheduleNotes || '').trim(),
@@ -534,7 +655,8 @@ async function saveContract(existingDocId = '') {
     coolingOffWaiver: Boolean(vals.coolingOffWaiver),
     contractorSignatory: (vals.contractorSignatory || getContractorDetails().signatoryName).trim(),
     clientSignatory: (vals.clientSignatory || task.customerName).trim(),
-    contractDate: vals.contractDate || today()
+    signedDate: vals.signedDate || today(),
+    workStartDate: vals.workStartDate || ''
   };
 
   const contractorSigUrl = legalSigState.sigContractor?.drawn
@@ -548,7 +670,7 @@ async function saveContract(existingDocId = '') {
 
   try {
     const pdfBlob = await makeContractPdf(contractData, contractorSigUrl, clientSigUrl);
-    const filename = `${contractRef}_Contract_${contractData.contractDate}.pdf`.replace(/[^a-zA-Z0-9._-]/g, '_');
+    const filename = `${contractRef}_Contract.pdf`;
     const dataUrl = await fileData(new File([pdfBlob], filename, { type: 'application/pdf' }));
 
     let pdfStorage = old?.pdfStorage || null;
@@ -568,7 +690,7 @@ async function saveContract(existingDocId = '') {
       jobRef: task.ref,
       contractRef,
       quoteId: contractData.quoteId,
-      quoteNumber: contractData.quoteNumber,
+      quoteNumber: quoteRef,
       totalAmount: contractData.totalAmount,
       name: contractData.title,
       filename,
@@ -595,19 +717,41 @@ async function saveContract(existingDocId = '') {
 async function makeContractPdf(cData, contractorSigUrl, clientSigUrl) {
   const ctx = await createBrandedPdfDocument();
   const { pdf, font, bold, width: W, height: H, margin } = ctx;
-  const docBadgeRef = `${cData.contractRef || ''}${cData.quoteNumber ? ` - ${cData.quoteNumber}` : ''}`;
+  const refBadge = pdfSafeText(cData.contractRef || '');
+  const [ar, ag, ab] = hexToRgbTuple(brand.color || '#0f5c5c');
+  const accentCol = PDFLib.rgb(ar, ag, ab);
+  const inkCol = PDFLib.rgb(0.08, 0.14, 0.18);
+  const ruleCol = PDFLib.rgb(0.82, 0.86, 0.89);
+  const tintCol = PDFLib.rgb(0.96, 0.97, 0.98);
+
   let page = pdf.addPage([W, H]);
-  let y = drawStandardPdfHeader(ctx, page, 'SERVICE CONTRACT', pdfSafeText(docBadgeRef));
+  let y = drawStandardPdfHeader(ctx, page, 'SERVICE CONTRACT', refBadge);
+
+  function startNewPage() {
+    page = pdf.addPage([W, H]);
+    y = drawStandardPdfHeader(ctx, page, 'SERVICE CONTRACT', refBadge);
+  }
 
   function ensureSpace(needed = 24) {
     if (y - needed < 68) {
-      page = pdf.addPage([W, H]);
-      y = drawStandardPdfHeader(ctx, page, 'SERVICE CONTRACT', pdfSafeText(docBadgeRef));
+      startNewPage();
     }
+  }
+
+  function drawDivider() {
+    ensureSpace(14);
+    page.drawLine({
+      start: { x: margin, y: y + 4 },
+      end: { x: W - margin, y: y + 4 },
+      thickness: 0.5,
+      color: ruleCol
+    });
+    y -= 10;
   }
 
   function writeParagraphs(text, size = 9, isBold = false, indent = 0) {
     const blocks = pdfSafeText(text || '').split('\n');
+    const maxW = W - margin * 2 - indent - 6;
     for (const block of blocks) {
       const words = block.trim().split(/\s+/).filter(Boolean);
       if (!words.length) {
@@ -615,7 +759,6 @@ async function makeContractPdf(cData, contractorSigUrl, clientSigUrl) {
         y -= size + 4;
         continue;
       }
-      const maxW = W - margin * 2 - indent;
       let line = '';
       for (const w of words) {
         const test = line ? `${line} ${w}` : w;
@@ -626,7 +769,7 @@ async function makeContractPdf(cData, contractorSigUrl, clientSigUrl) {
             y,
             size,
             font: isBold ? bold : font,
-            color: PDFLib.rgb(0.08, 0.14, 0.18)
+            color: inkCol
           });
           y -= size + 4.5;
           line = w;
@@ -641,79 +784,118 @@ async function makeContractPdf(cData, contractorSigUrl, clientSigUrl) {
           y,
           size,
           font: isBold ? bold : font,
-          color: PDFLib.rgb(0.08, 0.14, 0.18)
+          color: inkCol
         });
         y -= size + 4.5;
       }
     }
   }
 
-  function sectionTitle(t) {
-    ensureSpace(26);
+  function sectionHeading(title) {
+    ensureSpace(28);
     y -= 6;
-    page.drawText(pdfSafeText(String(t || '').toUpperCase()), {
+    page.drawRectangle({
       x: margin,
-      y,
+      y: y - 3,
+      width: W - margin * 2,
+      height: 17,
+      color: tintCol
+    });
+    page.drawText(pdfSafeText(String(title || '').toUpperCase()), {
+      x: margin + 6,
+      y: y + 1,
       size: 9.5,
       font: bold,
-      color: PDFLib.rgb(...hexToRgbTuple(brand.color || '#0f5c5c'))
+      color: accentCol
     });
-    y -= 14;
+    y -= 18;
   }
 
-  writeParagraphs(cData.title || 'Contract Agreement', 13, true);
+  // Contract Summary Box
+  writeParagraphs(cData.title || 'Service Agreement', 13, true);
   writeParagraphs(
-    `Contract Ref: ${cData.contractRef || 'N/A'} - Quote Ref: ${cData.quoteNumber || 'N/A'} - Contract Total: ${GBP(cData.totalAmount)} - Date: ${dateFmt(cData.contractDate || '')}`,
+    `Contract Ref: ${cData.contractRef || ''} - Quote Ref: ${cData.quoteRef || ''} - Total: ${GBP(cData.totalAmount)}`,
+    9.5,
+    true
+  );
+  writeParagraphs(
+    `Date Signed / Agreed: ${dateFmt(cData.signedDate || '') || 'Not dated'}${cData.workStartDate ? ` - Planned Start of Work: ${dateFmt(cData.workStartDate)}` : ''}`,
     9,
     false
   );
+  drawDivider();
 
-  sectionTitle(cData.scheduleTitle || 'Schedule of Scope of Work');
-  writeParagraphs(`Scope Summary: ${cData.scopeSummary || ''}`, 9, false, 2);
-  if (cData.scheduleItemsText) {
-    y -= 3;
-    writeParagraphs(cData.scheduleItemsText, 9, false, 6);
-  }
-  if (cData.scheduleNotes) {
-    y -= 3;
-    writeParagraphs(`Notes & Specifications: ${cData.scheduleNotes}`, 9, false, 2);
-  }
-  writeParagraphs(`Schedule Total: ${GBP(cData.totalAmount)}`, 10, true, 2);
-
+  // Clauses 1 to 12
   const clauses = buildTwelveClauses(cData);
   for (const cl of clauses) {
-    sectionTitle(`${cl.num}. ${cl.title}`);
+    sectionHeading(`${cl.num}. ${cl.title}`);
     writeParagraphs(cl.body, 8.8, false, 2);
+    y -= 3;
   }
 
-  sectionTitle('Execution & Signatures');
+  // Schedule of Scope of Work & British Standards at the END of the contract
+  startNewPage();
+  sectionHeading(`Schedule of Scope of Work (${cData.contractRef || ''})`);
+  writeParagraphs(`Quotation Reference: ${cData.quoteRef || ''}`, 9.5, true, 2);
+  writeParagraphs(`Client: ${cData.customerName || ''}`, 9.5, false, 2);
+  if (cData.customerAddress) {
+    writeParagraphs(`Property Address: ${cData.customerAddress.replace(/\n/g, ', ')}`, 9, false, 2);
+  }
+  y -= 4;
+
+  writeParagraphs('Scope of Work Summary:', 9.5, true, 2);
+  writeParagraphs(cData.scopeSummary || '', 9, false, 6);
+  y -= 4;
+
+  writeParagraphs('Quoted Schedule Items:', 9.5, true, 2);
+  writeParagraphs(cData.scheduleItemsText || '', 9, false, 6);
+  y -= 4;
+
+  if (cData.scheduleNotes) {
+    writeParagraphs('Additional Notes & Material Specifications:', 9.5, true, 2);
+    writeParagraphs(cData.scheduleNotes, 9, false, 6);
+    y -= 4;
+  }
+
+  writeParagraphs(`Schedule Total: ${GBP(cData.totalAmount)}`, 10.5, true, 2);
+  y -= 6;
+
+  sectionHeading('Applicable British Standards');
+  const stds = cData.standards?.length ? cData.standards : ['BS 8214 (General joinery & site fixings)'];
+  for (const s of stds) {
+    writeParagraphs(`- ${s}`, 9.2, false, 4);
+  }
+  y -= 8;
+
+  // Dual Signature Blocks at the end
+  sectionHeading('Agreement Execution & Signatures');
   for (const [roleLabel, sigName, sigUrl] of [
     ['Contractor', cData.contractorSignatory, contractorSigUrl],
     ['Client', cData.clientSignatory, clientSigUrl]
   ]) {
-    ensureSpace(84);
-    writeParagraphs(`${roleLabel} Name: ${sigName || '_________________________'}`, 9.5, true);
+    ensureSpace(88);
+    writeParagraphs(`${roleLabel}: ${sigName || '_________________________'}`, 9.5, true, 2);
     if (sigUrl) {
       try {
         const bytes = Uint8Array.from(atob(sigUrl.split(',')[1]), (ch) => ch.charCodeAt(0));
         const img = await pdf.embedPng(bytes);
         const dims = img.scale(Math.min(155 / img.width, 46 / img.height));
         page.drawImage(img, {
-          x: margin + 4,
+          x: margin + 6,
           y: y - dims.height,
           width: dims.width,
           height: dims.height
         });
-        y -= dims.height + 10;
+        y -= dims.height + 12;
       } catch (e) {
-        y -= 18;
+        y -= 20;
       }
     } else {
-      writeParagraphs('Signature: [Not signed]', 9, false, 4);
+      writeParagraphs('Signature: [Awaiting signature]', 9, false, 6);
     }
   }
 
-  applyStandardPdfFooters(ctx, 'Contract & Schedule of Scope of Work');
+  applyStandardPdfFooters(ctx, `Contract ${cData.contractRef || ''}`);
   return new Blob([await pdf.save()], { type: 'application/pdf' });
 }
 
@@ -741,7 +923,7 @@ async function openLegalDocPdf(docId) {
     const d = await get('docs', docId);
     if (!d) throw new Error('Contract not found');
     const blob = await resolveLegalDocBlob(d);
-    presentPdf(blob, d.filename || `${d.contractRef || d.name || 'Contract'}.pdf`, win);
+    presentPdf(blob, d.filename || `${d.contractRef || 'Contract'}.pdf`, win);
   } catch (e) {
     if (win) win.close();
     toast('Could not open PDF: ' + e.message);
@@ -753,7 +935,7 @@ async function shareLegalDoc(docId) {
     const d = await get('docs', docId);
     if (!d) throw new Error('Contract not found');
     const blob = await resolveLegalDocBlob(d);
-    await shareOrDownloadFile(blob, d.filename || `${d.contractRef || d.name || 'Contract'}.pdf`, d.name || 'Contract');
+    await shareOrDownloadFile(blob, d.filename || `${d.contractRef || 'Contract'}.pdf`, d.name || 'Contract');
   } catch (e) {
     toast('Could not share PDF: ' + e.message);
   }
