@@ -1,0 +1,265 @@
+<!DOCTYPE html>
+<html lang="en-GB">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="theme-color" content="#0f5c5c">
+<title>Handyman Manager · Customers</title>
+<style>
+:root{--ink:#14232f;--bg:#e9edef;--card:#fff;--ac:#0f5c5c;--tape:#f2c230;--mut:#5b6b76;--bad:#b3261e;--ok:#1b7a43;--ln:#cfd7dc}
+*{box-sizing:border-box}
+body{margin:0;font:16px/1.45 system-ui,-apple-system,"Segoe UI",sans-serif;background:var(--bg);color:var(--ink);padding-bottom:calc(82px + env(safe-area-inset-bottom))}
+header{background:var(--ac);color:white;padding:calc(12px + env(safe-area-inset-top)) 16px 12px;border-bottom:5px solid var(--tape);position:sticky;top:0;z-index:5;display:flex;align-items:center;justify-content:space-between;gap:12px}
+header .brand-wrap{display:flex;align-items:center;gap:10px;min-width:0}
+header img.hdr-logo{width:38px;height:38px;object-fit:contain;background:white;border-radius:7px;padding:2px;flex-shrink:0}
+header b{font-size:17px;display:block;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+header small{display:block;opacity:.88;font-size:12px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.sync-pill{font-size:11px;font-weight:700;padding:4px 9px;border-radius:999px;background:rgba(255,255,255,.16);color:white;white-space:nowrap;flex-shrink:0;cursor:pointer}
+.sync-pill.online{background:#1b7a43}
+main{max-width:780px;margin:auto;padding:14px}
+.c{background:var(--card);border:1px solid var(--ln);border-radius:12px;padding:14px;margin-bottom:12px;box-shadow:0 1px 2px rgba(20,35,47,.04)}
+h2,h3{margin:0 0 8px}
+.m{color:var(--mut);font-size:14px}
+.small{font-size:12px;color:var(--mut)}
+button{font:inherit;min-height:46px;padding:8px 14px;border:0;border-radius:8px;background:var(--ac);color:white;font-weight:650;margin:3px 3px 3px 0;cursor:pointer}
+button.secondary{background:white;color:var(--ac);border:2px solid var(--ac)}
+button.danger{background:#9e2525}
+button.w{width:100%}
+input,select,textarea{font:inherit;width:100%;min-height:45px;padding:9px;border:1px solid #9aa8b0;border-radius:8px;margin:3px 0 10px;background:white;color:var(--ink)}
+textarea{min-height:82px}
+label{font-weight:650;font-size:14px;display:block}
+.row{display:flex;justify-content:space-between;gap:10px;padding:10px 0;border-bottom:1px solid var(--ln);align-items:center}
+.row:last-child{border:0;padding-bottom:0}
+.clickable{cursor:pointer}
+.tag{background:var(--tape);color:#111;border-radius:6px;padding:3px 8px;font-size:12px;font-weight:700;white-space:nowrap}
+nav{position:fixed;bottom:0;left:0;right:0;display:flex;background:white;border-top:1px solid var(--ln);padding-bottom:env(safe-area-inset-bottom);z-index:6}
+nav button{flex:1;background:none;color:var(--mut);border-radius:0;margin:0;min-height:58px;font-size:12px;padding:4px}
+nav button.on{color:var(--ac);box-shadow:inset 0 3px var(--tape);font-weight:700}
+#toast{position:fixed;left:50%;transform:translateX(-50%);bottom:88px;background:#14232f;color:white;padding:10px 15px;border-radius:8px;display:none;z-index:10;max-width:90%;text-align:center}
+dialog{width:min(650px,96%);max-height:92vh;border:0;border-radius:14px;padding:16px;overflow:auto}
+dialog::backdrop{background:#0008}
+</style>
+</head>
+<body>
+<main id="view"></main>
+
+<script src="core.js"></script>
+<script>
+"use strict";
+
+let customerState = {
+  view: 'list', // 'list' | 'detail'
+  id: null,
+  search: ''
+};
+
+function setCustomerSearch(val) {
+  customerState.search = String(val || '').trim().toLowerCase();
+  renderCustomers(true);
+}
+
+function openCustomerView(view, id = null) {
+  customerState.view = view;
+  customerState.id = id;
+  renderCustomers();
+}
+
+async function renderCustomers(preserveFocus = false) {
+  const viewEl = $('#view');
+  try {
+    if (customerState.view === 'detail' && customerState.id) {
+      viewEl.innerHTML = await renderCustomerDetail(customerState.id);
+    } else {
+      viewEl.innerHTML = await renderCustomersList();
+    }
+
+    if (preserveFocus) {
+      const inp = $('#customerSearch');
+      if (inp) {
+        inp.focus();
+        inp.setSelectionRange(inp.value.length, inp.value.length);
+      }
+    } else {
+      window.scrollTo(0, 0);
+    }
+  } catch (e) {
+    console.error(e);
+    viewEl.innerHTML = `<div class="c"><b style="color:var(--bad)">Error:</b> ${esc(e.message)}</div>`;
+  }
+}
+
+async function renderCustomersList() {
+  const allCustomers = (await all('customers')).sort((a, b) =>
+    (a.name || '').localeCompare(b.name || '')
+  );
+  const q = customerState.search;
+  const filtered = q
+    ? allCustomers.filter(
+        (c) =>
+          (c.name || '').toLowerCase().includes(q) ||
+          (c.phone || '').toLowerCase().includes(q) ||
+          (c.email || '').toLowerCase().includes(q) ||
+          (c.address || '').toLowerCase().includes(q)
+      )
+    : allCustomers;
+
+  return `
+    <div class="c">
+      <h2>Customers (${allCustomers.length})</h2>
+      <p class="m">Register customers first, then assign tasks and create quotations in Step 3.</p>
+      <input id="customerSearch" type="search" placeholder="Search name, phone, email or address..." value="${esc(customerState.search)}" oninput="setCustomerSearch(this.value)">
+      <button type="button" class="w" onclick="customerForm()">+ Register New Customer</button>
+    </div>
+
+    ${
+      filtered.length
+        ? filtered
+            .map(
+              (c) => `
+              <div class="c clickable" onclick="openCustomerView('detail', '${esc(c.id)}')">
+                <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:8px">
+                  <b>${esc(c.name)}</b>
+                  <span class="small">View &rarr;</span>
+                </div>
+                <div class="m">${[c.phone, c.email].filter(Boolean).map(esc).join(' · ') || 'No contact details'}</div>
+                ${c.address ? `<div class="small" style="margin-top:4px">${esc(c.address).replace(/\n/g, ', ')}</div>` : ''}
+              </div>`
+            )
+            .join('')
+        : `<div class="c"><p class="m">${q ? 'No customers match your search.' : 'No customers registered yet. Tap "+ Register New Customer" above.'}</p></div>`
+    }
+  `;
+}
+
+async function renderCustomerDetail(id) {
+  const c = await get('customers', id);
+  if (!c) {
+    return `<div class="c"><p>Customer not found.</p><button type="button" class="secondary" onclick="openCustomerView('list')">Back to customers</button></div>`;
+  }
+
+  const jobs = (await all('jobs'))
+    .filter((j) => j.customerId === id)
+    .sort((a, b) => (b.created || 0) - (a.created || 0));
+
+  return `
+    <button type="button" class="secondary" style="margin-bottom:10px" onclick="openCustomerView('list')">&larr; All Customers</button>
+    <h2>${esc(c.name)}</h2>
+
+    <div class="c">
+      ${c.phone ? `<div><b>Phone:</b> <a href="tel:${esc(c.phone)}">${esc(c.phone)}</a></div>` : ''}
+      ${c.email ? `<div><b>Email:</b> <a href="mailto:${esc(c.email)}">${esc(c.email)}</a></div>` : ''}
+      ${c.address ? `<p style="margin:8px 0"><b>Property Address:</b><br>${esc(c.address).replace(/\n/g, '<br>')}</p>` : ''}
+      ${c.notes ? `<p style="margin:8px 0"><b>Notes:</b><br>${esc(c.notes).replace(/\n/g, '<br>')}</p>` : ''}
+
+      <div style="margin-top:10px;display:flex;flex-wrap:wrap;gap:6px">
+        <button type="button" onclick="customerForm('${esc(id)}')">Edit Customer</button>
+        <button type="button" class="secondary" onclick="navigateTo('tasks.html', { action: 'new', customerId: '${esc(id)}' })">+ Assign Task &amp; Quote</button>
+        <button type="button" class="danger" onclick="confirmDeleteCustomer('${esc(id)}')">Delete</button>
+      </div>
+    </div>
+
+    <div class="c">
+      <h3>Tasks for ${esc(c.name)} (${jobs.length})</h3>
+      ${
+        jobs.length
+          ? jobs
+              .map(
+                (j) => `
+                <div class="row clickable" onclick="navigateTo('tasks.html', { view: 'task', id: '${esc(j.id)}' })">
+                  <div>
+                    <b>${esc(j.ref)}</b>
+                    <div class="m">${esc(j.task || j.description)}</div>
+                    <div class="small">${GBP(j.amount)} · ${esc(j.paymentStatus || 'Not paid')}</div>
+                  </div>
+                  <span class="tag">${esc(j.status || 'Enquiry')}</span>
+                </div>`
+              )
+              .join('')
+          : `<p class="m">No tasks assigned to this customer yet.</p>
+             <button type="button" class="secondary w" onclick="navigateTo('tasks.html', { action: 'new', customerId: '${esc(id)}' })">+ Create First Task &amp; Quote</button>`
+      }
+    </div>
+  `;
+}
+
+async function customerForm(id = '') {
+  const c = id ? await get('customers', id) : {};
+  modal(`
+    <h2>${id ? 'Edit' : 'Register'} Customer</h2>
+    <form id="customerForm" onsubmit="event.preventDefault();saveCustomer('${esc(id)}')">
+      <label>Customer Full Name</label>
+      <input name="name" required value="${esc(c.name || '')}" placeholder="e.g. Sarah Jenkins">
+
+      <label>Phone Number</label>
+      <input name="phone" type="tel" value="${esc(c.phone || '')}" placeholder="e.g. 07700 900123">
+
+      <label>Email Address</label>
+      <input name="email" type="email" value="${esc(c.email || '')}" placeholder="e.g. sarah@example.co.uk">
+
+      <label>Property / Service Address</label>
+      <textarea name="address" placeholder="House number, street, town, postcode">${esc(c.address || '')}</textarea>
+
+      <label>Customer Notes</label>
+      <textarea name="notes" placeholder="Access notes, gate codes, preferences">${esc(c.notes || '')}</textarea>
+
+      <button type="submit" class="w">${id ? 'Save Changes' : 'Save Customer'}</button>
+    </form>
+  `);
+}
+
+async function saveCustomer(id) {
+  const f = formData('customerForm');
+  if (!f.name || !f.name.trim()) return toast('Please enter the customer name');
+
+  const existing = id ? await get('customers', id) : null;
+  const record = {
+    ...(existing || {}),
+    ...f,
+    name: f.name.trim(),
+    id: id || uid(),
+    created: existing?.created || Date.now(),
+    updatedAt: Date.now()
+  };
+
+  await put('customers', record);
+  closeModal();
+  toast(id ? 'Customer updated' : 'Customer registered');
+  openCustomerView('detail', record.id);
+}
+
+function confirmDeleteCustomer(id) {
+  modal(`
+    <h2>Delete Customer?</h2>
+    <p class="m">This removes the customer record. Existing task, quote, contract, QA, and invoice records remain intact.</p>
+    <button type="button" class="danger w" onclick="deleteCustomer('${esc(id)}')">Yes, Delete Customer</button>
+  `);
+}
+
+async function deleteCustomer(id) {
+  await del('customers', id);
+  closeModal();
+  toast('Customer deleted');
+  openCustomerView('list');
+}
+
+(async () => {
+  try {
+    const { params } = await initCore('customers');
+    if (params.id) {
+      customerState.view = 'detail';
+      customerState.id = params.id;
+    }
+    await renderCustomers();
+
+    if (params.action === 'new') {
+      clearQueryParams();
+      await customerForm();
+    }
+  } catch (e) {
+    console.error('Customers boot error:', e);
+  }
+})();
+</script>
+</body>
+</html>
