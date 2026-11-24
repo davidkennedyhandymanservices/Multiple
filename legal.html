@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="theme-color" content="#0f5c5c">
-<title>Handyman Manager · Legal Contracts</title>
+<title>Handyman Manager - Legal Contracts</title>
 <style>
 :root{--ink:#14232f;--bg:#e9edef;--card:#fff;--ac:#0f5c5c;--tape:#f2c230;--mut:#5b6b76;--bad:#b3261e;--ok:#1b7a43;--ln:#cfd7dc}
 *{box-sizing:border-box}
@@ -64,7 +64,7 @@ function getContractorDetails() {
   const contactParts = [bAddr, brand.phone, brand.email].filter(Boolean);
   return {
     businessName: bName,
-    contactSummary: contactParts.length ? contactParts.join(' · ') : 'contact details on file',
+    contactSummary: contactParts.length ? contactParts.join(' - ') : 'contact details on file',
     signatoryName: bName
   };
 }
@@ -74,7 +74,7 @@ function buildTwelveClauses(data) {
   const clientName = (data.customerName || '[Client Full Name]').trim();
   const clientContact = [data.customerAddress?.replace(/\n/g, ', '), data.customerPhone, data.customerEmail]
     .filter(Boolean)
-    .join(' · ') || '[Client Contact Details]';
+    .join(' - ') || '[Client Contact Details]';
   const siteAddr = (data.customerAddress || '[Site/Property Address]').replace(/\n/g, ', ').trim();
   const quoteInfo = data.quoteNumber
     ? `${data.quoteNumber}${data.quoteDate ? ` dated ${dateFmt(data.quoteDate)}` : ''}${data.validUntil ? ` (valid until ${dateFmt(data.validUntil)})` : ''}`
@@ -99,7 +99,7 @@ function buildTwelveClauses(data) {
     {
       num: '4',
       title: 'Cancellation Policy & Statutory Waiver',
-      body: `The Client acknowledges that requesting immediate commencement of the Services constitutes an express request to waive the statutory 14-day cooling-off period under the Consumer Contracts Regulations. Following commencement, either party may terminate this Agreement subject to the agreed written notice period. In the event of cancellation by the Client, the Contractor shall be entitled to full payment for all labor and materials utilized up to the effective date of termination.${data.coolingOffWaiver ? '\n[✓] Express Request & Waiver Confirmed: The Client has expressly requested immediate commencement of the Services and acknowledged the waiver of the statutory 14-day cooling-off period under the Consumer Contracts Regulations.' : '\n[ ] Express Request & Waiver: Immediate commencement / 14-day cooling-off waiver box not ticked.'}`
+      body: `The Client acknowledges that requesting immediate commencement of the Services constitutes an express request to waive the statutory 14-day cooling-off period under the Consumer Contracts Regulations. Following commencement, either party may terminate this Agreement subject to the agreed written notice period. In the event of cancellation by the Client, the Contractor shall be entitled to full payment for all labor and materials utilized up to the effective date of termination.${data.coolingOffWaiver ? '\n[X] Express Request & Waiver Confirmed: The Client has expressly requested immediate commencement of the Services and acknowledged the waiver of the statutory 14-day cooling-off period under the Consumer Contracts Regulations.' : '\n[ ] Express Request & Waiver: Immediate commencement / 14-day cooling-off waiver box not ticked.'}`
     },
     {
       num: '5',
@@ -109,7 +109,7 @@ function buildTwelveClauses(data) {
     {
       num: '6',
       title: 'Limitation of Liability',
-      body: `Except in respect of death or personal injury caused by the Contractor's negligence, the Contractor’s total aggregate liability arising under or in connection with this Agreement, whether in contract, tort (including negligence), breach of statutory duty, or otherwise, shall be strictly limited to the total value of the fees payable under the applicable Schedule of Scope of Work. The Contractor shall not be liable for any indirect, consequential, or unforeseeable losses, including but not limited to pre-existing conditions, mismatch of existing materials, or indirect property damage.`
+      body: `Except in respect of death or personal injury caused by the Contractor's negligence, the Contractor's total aggregate liability arising under or in connection with this Agreement, whether in contract, tort (including negligence), breach of statutory duty, or otherwise, shall be strictly limited to the total value of the fees payable under the applicable Schedule of Scope of Work. The Contractor shall not be liable for any indirect, consequential, or unforeseeable losses, including but not limited to pre-existing conditions, mismatch of existing materials, or indirect property damage.`
     },
     {
       num: '7',
@@ -171,7 +171,7 @@ async function renderLegalPage() {
     <div class="c">
       <h2>Legal Contracts</h2>
       <p class="m">
-        Generate a 12-clause contract and <strong>Schedule of Scope of Work</strong> from a <strong>task reference number</strong> and its <strong>quotation details</strong>, with dual signatures for Contractor and Client.
+        Generate a 12-clause contract and <strong>Schedule of Scope of Work</strong> from a <strong>task reference</strong> and its <strong>quotation details</strong>, with dual signatures for Contractor and Client.
       </p>
       <button type="button" class="w" onclick="openContractBuilder()">+ Create Contract from Task &amp; Quote</button>
     </div>
@@ -183,16 +183,17 @@ async function renderLegalPage() {
           ? docs
               .map((d) => {
                 const isSigned = d.status === 'Signed';
+                const conRef = d.contractRef || formatDocRef('con', d.jobRef || d.quoteNumber || '');
                 return `
                   <div class="doc-card">
                     <div style="display:flex;justify-content:space-between;align-items:center;gap:8px">
-                      <b>${esc(d.name)}</b>
+                      <b>${esc(conRef)} - ${esc(d.name)}</b>
                       <span class="tag ${isSigned ? 'ok' : ''}">${esc(d.status || 'Draft')}</span>
                     </div>
                     <div class="m" style="margin-top:4px">
-                      Task Ref: <b>${esc(d.jobRef || 'N/A')}</b>
-                      ${d.quoteNumber ? ` · Quote: <b>${esc(d.quoteNumber)}</b>` : ''}
-                      ${d.totalAmount !== undefined ? ` · ${GBP(d.totalAmount)}` : ''}
+                      Contract Ref: <b>${esc(conRef)}</b>
+                      ${d.quoteNumber ? ` - Quote Ref: <b>${esc(d.quoteNumber)}</b>` : ''}
+                      ${d.totalAmount !== undefined ? ` - ${GBP(d.totalAmount)}` : ''}
                     </div>
                     <div class="small">Updated ${new Date(d.updatedAt || d.created || Date.now()).toLocaleDateString('en-GB')}</div>
                     <div class="doc-actions">
@@ -215,13 +216,16 @@ async function renderLegalPage() {
           ? tasks
               .map((t) => {
                 const q = quoteByTask.get(t.id);
+                const refCode = extractRefCode(q?.documentNumber || t.ref);
+                const qRef = q?.documentNumber || formatDocRef('quo', refCode);
+                const cRef = formatDocRef('con', refCode);
                 return `
                   <div class="row">
                     <div>
-                      <b>${esc(t.ref)} · ${esc(t.customerName)}</b>
+                      <b>${esc(cRef)} - ${esc(t.customerName)}</b>
                       <div class="m">${esc(t.task || t.description)}</div>
                       <div class="small">
-                        ${q ? `Quote ${esc(q.documentNumber)} · ${GBP(q.total)}` : `Task Amount: ${GBP(t.amount)}`}
+                        Quote: ${esc(qRef)} - ${GBP(q ? q.total : t.amount)}
                       </div>
                     </div>
                     <button type="button" onclick="openContractBuilder('${esc(t.id)}')">Create Contract</button>
@@ -248,26 +252,31 @@ async function openContractBuilder(preselectedTaskId = '', overrideData = null, 
   const task = ctx?.task || {};
   const quote = ctx?.quote || null;
 
+  const refCode = extractRefCode(quote?.documentNumber || task.ref || existingDoc?.contractRef);
+  const quoteRef = quote?.documentNumber || formatDocRef('quo', refCode);
+  const contractRef = formatDocRef('con', refCode);
+
   const quoteScheduleLines = quote?.items?.length
     ? quote.items
-        .map((item, idx) => `${idx + 1}. ${item.description} — ${GBP(item.amount)}`)
+        .map((item, idx) => `${idx + 1}. ${item.description} - ${GBP(item.amount)}`)
         .join('\n')
-    : `1. ${task.task || task.description || 'Agreed work'} — ${GBP(quote ? quote.total : task.amount)}`;
+    : `1. ${task.task || task.description || 'Agreed work'} - ${GBP(quote ? quote.total : task.amount)}`;
 
   const contractor = getContractorDetails();
   const base = existingDoc?.contractData || {
-    title: existingDoc?.name || `Contract - ${task.ref || ''}`,
+    title: existingDoc?.name || `${contractRef} - ${task.task || task.description || 'Service Agreement'}`,
     taskId: task.id || '',
     jobRef: task.ref || '',
+    contractRef,
     quoteId: quote?.id || '',
-    quoteNumber: quote?.documentNumber || 'No quote linked',
+    quoteNumber: quoteRef,
     quoteDate: quote?.createdDate || '',
     validUntil: quote?.validUntil || '',
     customerName: task.customerName || '',
     customerAddress: task.customerAddress || ctx?.customer?.address || '',
     customerPhone: ctx?.customer?.phone || '',
     customerEmail: ctx?.customer?.email || '',
-    scheduleTitle: `Schedule of Scope of Work (${task.ref || 'Task'})`,
+    scheduleTitle: `Schedule of Scope of Work (${contractRef})`,
     scopeSummary: task.description || '',
     scheduleItemsText: quoteScheduleLines,
     scheduleNotes: quote?.notes || '',
@@ -282,25 +291,28 @@ async function openContractBuilder(preselectedTaskId = '', overrideData = null, 
   const previewClauses = buildTwelveClauses(d);
 
   modal(`
-    <h2>${existingDoc ? 'Edit' : 'Create'} Contract</h2>
-    <p class="m">Built from <strong>Task Ref</strong>, <strong>Quote Details</strong>, and the <strong>12 Contract Clauses</strong>.</p>
+    <h2>${existingDoc ? 'Edit' : 'Create'} Contract (${esc(d.contractRef)})</h2>
+    <p class="m">Built from <strong>Task Reference</strong>, <strong>Quote (${esc(d.quoteNumber)})</strong>, and the <strong>12 Contract Clauses</strong>.</p>
 
     <form id="contractForm" onsubmit="event.preventDefault();saveContract('${esc(existingDoc?.id || '')}')">
-      <label>Select Task Reference</label>
+      <label>Select Task</label>
       <select name="taskId" id="contractTaskSelect" onchange="switchContractTask(this.value, '${esc(existingDoc?.id || '')}')">
         ${tasks
           .map(
             (t) =>
-              `<option value="${esc(t.id)}" ${t.id === d.taskId ? 'selected' : ''}>${esc(t.ref)} · ${esc(t.customerName)}</option>`
+              `<option value="${esc(t.id)}" ${t.id === d.taskId ? 'selected' : ''}>${esc(t.ref)} - ${esc(t.customerName)}</option>`
           )
           .join('')}
       </select>
+
+      <label>Contract Reference</label>
+      <input name="contractRef" value="${esc(d.contractRef)}" readonly>
 
       <label>Contract Title</label>
       <input name="title" value="${esc(d.title)}" required>
 
       <label>Linked Quotation Reference &amp; Total</label>
-      <input name="quoteSummary" value="${esc(`${d.quoteNumber} · ${GBP(d.totalAmount)}`)}" readonly>
+      <input name="quoteSummary" value="${esc(`${d.quoteNumber} - ${GBP(d.totalAmount)}`)}" readonly>
 
       <label>Client Full Name</label>
       <input name="customerName" value="${esc(d.customerName)}" required>
@@ -398,9 +410,12 @@ async function switchContractTask(newTaskId, existingDocId = '') {
   const ctx = await getTaskQuoteContext(newTaskId);
   const task = ctx?.task || {};
   const quote = ctx?.quote || null;
+  const refCode = extractRefCode(quote?.documentNumber || task.ref);
+  const quoteRef = quote?.documentNumber || formatDocRef('quo', refCode);
+  const contractRef = formatDocRef('con', refCode);
   const quoteLines = quote?.items?.length
-    ? quote.items.map((item, idx) => `${idx + 1}. ${item.description} — ${GBP(item.amount)}`).join('\n')
-    : `1. ${task.task || task.description || 'Agreed work'} — ${GBP(quote ? quote.total : task.amount)}`;
+    ? quote.items.map((item, idx) => `${idx + 1}. ${item.description} - ${GBP(item.amount)}`).join('\n')
+    : `1. ${task.task || task.description || 'Agreed work'} - ${GBP(quote ? quote.total : task.amount)}`;
 
   await openContractBuilder(
     newTaskId,
@@ -408,15 +423,16 @@ async function switchContractTask(newTaskId, existingDocId = '') {
       ...currentVals,
       taskId: task.id || '',
       jobRef: task.ref || '',
+      contractRef,
       quoteId: quote?.id || '',
-      quoteNumber: quote?.documentNumber || 'No quote linked',
+      quoteNumber: quoteRef,
       quoteDate: quote?.createdDate || '',
       validUntil: quote?.validUntil || '',
       customerName: task.customerName || currentVals.customerName || '',
       customerAddress: task.customerAddress || ctx?.customer?.address || currentVals.customerAddress || '',
       customerPhone: ctx?.customer?.phone || '',
       customerEmail: ctx?.customer?.email || '',
-      scheduleTitle: `Schedule of Scope of Work (${task.ref || 'Task'})`,
+      scheduleTitle: `Schedule of Scope of Work (${contractRef})`,
       scopeSummary: task.description || currentVals.scopeSummary || '',
       scheduleItemsText: quoteLines,
       scheduleNotes: quote?.notes || '',
@@ -493,20 +509,24 @@ async function saveContract(existingDocId = '') {
   const old = existingDocId ? await get('docs', existingDocId) : null;
   const task = ctx.task;
   const quote = ctx.quote;
+  const refCode = extractRefCode(quote?.documentNumber || task.ref || old?.contractRef);
+  const contractRef = formatDocRef('con', refCode);
+  const quoteRef = quote?.documentNumber || formatDocRef('quo', refCode);
 
   const contractData = {
-    title: (vals.title || `Contract - ${task.ref}`).trim(),
+    title: (vals.title || `${contractRef} - ${task.task || task.description || 'Service Agreement'}`).trim(),
     taskId: task.id,
     jobRef: task.ref,
+    contractRef,
     quoteId: quote?.id || '',
-    quoteNumber: quote?.documentNumber || 'No quote linked',
+    quoteNumber: quoteRef,
     quoteDate: quote?.createdDate || '',
     validUntil: quote?.validUntil || '',
     customerName: (vals.customerName || task.customerName).trim(),
     customerAddress: (vals.customerAddress || '').trim(),
     customerPhone: ctx.customer?.phone || '',
     customerEmail: ctx.customer?.email || '',
-    scheduleTitle: (vals.scheduleTitle || `Schedule of Scope of Work (${task.ref})`).trim(),
+    scheduleTitle: (vals.scheduleTitle || `Schedule of Scope of Work (${contractRef})`).trim(),
     scopeSummary: (vals.scopeSummary || '').trim(),
     scheduleItemsText: (vals.scheduleItemsText || '').trim(),
     scheduleNotes: (vals.scheduleNotes || '').trim(),
@@ -528,13 +548,13 @@ async function saveContract(existingDocId = '') {
 
   try {
     const pdfBlob = await makeContractPdf(contractData, contractorSigUrl, clientSigUrl);
-    const filename = `${task.ref}_Contract_${contractData.contractDate}.pdf`.replace(/[^a-zA-Z0-9._-]/g, '_');
+    const filename = `${contractRef}_Contract_${contractData.contractDate}.pdf`.replace(/[^a-zA-Z0-9._-]/g, '_');
     const dataUrl = await fileData(new File([pdfBlob], filename, { type: 'application/pdf' }));
 
     let pdfStorage = old?.pdfStorage || null;
     if (isSupabaseConfigured()) {
       try {
-        pdfStorage = await uploadPdfToSupabase(pdfBlob, `contracts/${task.ref}/${filename}`);
+        pdfStorage = await uploadPdfToSupabase(pdfBlob, `contracts/${contractRef}/${filename}`);
       } catch (upErr) {
         console.warn('Contract PDF upload skipped:', upErr.message);
       }
@@ -546,6 +566,7 @@ async function saveContract(existingDocId = '') {
       docType: 'contract-12',
       jobId: task.id,
       jobRef: task.ref,
+      contractRef,
       quoteId: contractData.quoteId,
       quoteNumber: contractData.quoteNumber,
       totalAmount: contractData.totalAmount,
@@ -563,7 +584,7 @@ async function saveContract(existingDocId = '') {
 
     await put('docs', record);
     closeModal();
-    toast(existingDocId ? 'Contract updated' : 'Contract saved & PDF generated');
+    toast(existingDocId ? 'Contract updated' : `Contract ${contractRef} saved & PDF generated`);
     await renderLegalPage();
   } catch (e) {
     console.error(e);
@@ -574,19 +595,19 @@ async function saveContract(existingDocId = '') {
 async function makeContractPdf(cData, contractorSigUrl, clientSigUrl) {
   const ctx = await createBrandedPdfDocument();
   const { pdf, font, bold, width: W, height: H, margin } = ctx;
-  const docBadgeRef = `${cData.jobRef || ''}${cData.quoteNumber && cData.quoteNumber !== 'No quote linked' ? ` · ${cData.quoteNumber}` : ''}`;
+  const docBadgeRef = `${cData.contractRef || ''}${cData.quoteNumber ? ` - ${cData.quoteNumber}` : ''}`;
   let page = pdf.addPage([W, H]);
-  let y = drawStandardPdfHeader(ctx, page, 'SERVICE CONTRACT', docBadgeRef);
+  let y = drawStandardPdfHeader(ctx, page, 'SERVICE CONTRACT', pdfSafeText(docBadgeRef));
 
   function ensureSpace(needed = 24) {
     if (y - needed < 68) {
       page = pdf.addPage([W, H]);
-      y = drawStandardPdfHeader(ctx, page, 'SERVICE CONTRACT', docBadgeRef);
+      y = drawStandardPdfHeader(ctx, page, 'SERVICE CONTRACT', pdfSafeText(docBadgeRef));
     }
   }
 
   function writeParagraphs(text, size = 9, isBold = false, indent = 0) {
-    const blocks = String(text || '').split('\n');
+    const blocks = pdfSafeText(text || '').split('\n');
     for (const block of blocks) {
       const words = block.trim().split(/\s+/).filter(Boolean);
       if (!words.length) {
@@ -598,9 +619,9 @@ async function makeContractPdf(cData, contractorSigUrl, clientSigUrl) {
       let line = '';
       for (const w of words) {
         const test = line ? `${line} ${w}` : w;
-        if (font.widthOfTextAtSize(test, size) > maxW && line) {
+        if (font.widthOfTextAtSize(pdfSafeText(test), size) > maxW && line) {
           ensureSpace(size + 4.5);
-          page.drawText(line, {
+          page.drawText(pdfSafeText(line), {
             x: margin + indent,
             y,
             size,
@@ -615,7 +636,7 @@ async function makeContractPdf(cData, contractorSigUrl, clientSigUrl) {
       }
       if (line) {
         ensureSpace(size + 4.5);
-        page.drawText(line, {
+        page.drawText(pdfSafeText(line), {
           x: margin + indent,
           y,
           size,
@@ -630,7 +651,7 @@ async function makeContractPdf(cData, contractorSigUrl, clientSigUrl) {
   function sectionTitle(t) {
     ensureSpace(26);
     y -= 6;
-    page.drawText(String(t || '').toUpperCase(), {
+    page.drawText(pdfSafeText(String(t || '').toUpperCase()), {
       x: margin,
       y,
       size: 9.5,
@@ -642,12 +663,11 @@ async function makeContractPdf(cData, contractorSigUrl, clientSigUrl) {
 
   writeParagraphs(cData.title || 'Contract Agreement', 13, true);
   writeParagraphs(
-    `Task Reference: ${cData.jobRef || 'N/A'} · Quotation Reference: ${cData.quoteNumber || 'N/A'} · Contract Total: ${GBP(cData.totalAmount)} · Date: ${dateFmt(cData.contractDate || '')}`,
+    `Contract Ref: ${cData.contractRef || 'N/A'} - Quote Ref: ${cData.quoteNumber || 'N/A'} - Contract Total: ${GBP(cData.totalAmount)} - Date: ${dateFmt(cData.contractDate || '')}`,
     9,
     false
   );
 
-  // Schedule of Scope of Work
   sectionTitle(cData.scheduleTitle || 'Schedule of Scope of Work');
   writeParagraphs(`Scope Summary: ${cData.scopeSummary || ''}`, 9, false, 2);
   if (cData.scheduleItemsText) {
@@ -660,14 +680,12 @@ async function makeContractPdf(cData, contractorSigUrl, clientSigUrl) {
   }
   writeParagraphs(`Schedule Total: ${GBP(cData.totalAmount)}`, 10, true, 2);
 
-  // 12 Clauses
   const clauses = buildTwelveClauses(cData);
   for (const cl of clauses) {
     sectionTitle(`${cl.num}. ${cl.title}`);
     writeParagraphs(cl.body, 8.8, false, 2);
   }
 
-  // Dual Signatures
   sectionTitle('Execution & Signatures');
   for (const [roleLabel, sigName, sigUrl] of [
     ['Contractor', cData.contractorSignatory, contractorSigUrl],
@@ -723,7 +741,7 @@ async function openLegalDocPdf(docId) {
     const d = await get('docs', docId);
     if (!d) throw new Error('Contract not found');
     const blob = await resolveLegalDocBlob(d);
-    presentPdf(blob, d.filename || `${d.name || 'Contract'}.pdf`, win);
+    presentPdf(blob, d.filename || `${d.contractRef || d.name || 'Contract'}.pdf`, win);
   } catch (e) {
     if (win) win.close();
     toast('Could not open PDF: ' + e.message);
@@ -735,7 +753,7 @@ async function shareLegalDoc(docId) {
     const d = await get('docs', docId);
     if (!d) throw new Error('Contract not found');
     const blob = await resolveLegalDocBlob(d);
-    await shareOrDownloadFile(blob, d.filename || `${d.name || 'Contract'}.pdf`, d.name || 'Contract');
+    await shareOrDownloadFile(blob, d.filename || `${d.contractRef || d.name || 'Contract'}.pdf`, d.name || 'Contract');
   } catch (e) {
     toast('Could not share PDF: ' + e.message);
   }
