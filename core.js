@@ -62,7 +62,7 @@ let supabaseConfig = { ...DEFAULT_SUPABASE };
 let syncInProgress = false;
 
 // ============================================================================
-// 2. DOM, FORMATTING & FILE UTILITIES
+// 2. DOM, FORMATTING, REFERENCE NUMBER & FILE UTILITIES
 // ============================================================================
 const $ = (selector, root = document) => root.querySelector(selector);
 const $$ = (selector, root = document) => Array.from(root.querySelectorAll(selector));
@@ -90,6 +90,39 @@ const GBP = (n) => '£' + (Number(n) || 0).toFixed(2);
 
 const dateFmt = (d) =>
   d ? new Date(d + 'T12:00:00').toLocaleDateString('en-GB') : '';
+
+/**
+ * Extracts the shared numeric/core reference code (e.g. "121" from "121", "quo121", or "TSK-121")
+ * and formats it with the requested document prefix ("quo", "con", "qa", "inv", "tsk").
+ */
+function extractRefCode(rawRef) {
+  const s = String(rawRef || '').trim();
+  const numMatch = s.match(/(\d+)/);
+  if (numMatch) return numMatch[1];
+  const cleaned = s.replace(/^(quo|con|qa|inv|tsk|job)[-_\s]*/i, '').trim();
+  return cleaned || String(Math.floor(100 + Math.random() * 900));
+}
+
+function formatDocRef(prefix, rawRef) {
+  const code = extractRefCode(rawRef);
+  return `${String(prefix || '').toLowerCase()}${code}`;
+}
+
+/**
+ * Sanitises strings for PDFLib StandardFonts (WinAnsi / Windows-1252) so characters
+ * like ✓, em-dashes, or smart quotes never throw encoding errors.
+ */
+function pdfSafeText(str) {
+  return String(str ?? '')
+    .replace(/✓|✔/g, '[X]')
+    .replace(/✗|✘/g, '[ ]')
+    .replace(/—|–/g, '-')
+    .replace(/[‘’]/g, "'")
+    .replace(/[“”]/g, '"')
+    .replace(/…/g, '...')
+    .replace(/·/g, '-')
+    .replace(/[^\x20-\x7E\xA0-\xFF]/g, '');
+}
 
 function formData(formId) {
   const form = typeof formId === 'string' ? $('#' + formId) : formId;
@@ -367,7 +400,6 @@ async function syncWithSupabase(options = { quiet: false }) {
       const localItems = await all(storeName);
       const localMap = new Map(localItems.map((item) => [String(item.id), item]));
 
-      // 1. Pull remote rows
       const getRes = await fetch(supabaseRestUrl(storeName, '?select=id,data,updated_at'), {
         headers: supabaseHeaders()
       });
@@ -395,7 +427,6 @@ async function syncWithSupabase(options = { quiet: false }) {
         }
       }
 
-      // 2. Push local-only or newer local records
       for (const localRec of localItems) {
         if (!localRec || !localRec.id) continue;
         const localTs = Number(localRec.updatedAt || localRec.created || Date.now());
@@ -428,7 +459,7 @@ function updateSyncBadge(state = null) {
   if (!pill) return;
 
   if (state === 'syncing') {
-    pill.textContent = 'Syncing…';
+    pill.textContent = 'Syncing...';
     pill.className = 'sync-pill';
     return;
   }
@@ -645,10 +676,6 @@ function hexToRgbTuple(hex) {
   ];
 }
 
-/**
- * Creates a standard A4 PDFLib document with shared fonts and embedded logo
- * so quotations, contracts, QA reports, and invoices share a consistent look.
- */
 async function createBrandedPdfDocument() {
   await loadScript('https://cdnjs.cloudflare.com/ajax/libs/pdf-lib/1.17.1/pdf-lib.min.js');
   const pdf = await PDFLib.PDFDocument.create();
@@ -680,9 +707,6 @@ async function createBrandedPdfDocument() {
   };
 }
 
-/**
- * Draws the shared top banner and right-hand document badge on a PDF page.
- */
 function drawStandardPdfHeader(docCtx, page, docTitle = 'DOCUMENT', docRef = '') {
   const { width: W, height: H, margin, headerHeight, font, bold, logo } = docCtx;
   const [r, g, b] = hexToRgbTuple(brand.color || '#0f5c5c');
@@ -714,7 +738,7 @@ function drawStandardPdfHeader(docCtx, page, docTitle = 'DOCUMENT', docRef = '')
     x += lw + 12;
   }
 
-  page.drawText(String(brand.name || DEFAULT_BRAND.name).slice(0, 52), {
+  page.drawText(pdfSafeText(String(brand.name || DEFAULT_BRAND.name).slice(0, 52)), {
     x,
     y: H - 40,
     size: 15,
@@ -723,7 +747,7 @@ function drawStandardPdfHeader(docCtx, page, docTitle = 'DOCUMENT', docRef = '')
   });
 
   if (brand.slogan) {
-    page.drawText(String(brand.slogan).slice(0, 75), {
+    page.drawText(pdfSafeText(String(brand.slogan).slice(0, 75)), {
       x,
       y: H - 57,
       size: 9,
@@ -732,9 +756,9 @@ function drawStandardPdfHeader(docCtx, page, docTitle = 'DOCUMENT', docRef = '')
     });
   }
 
-  const contactLine = [brand.phone, brand.email, brand.website].filter(Boolean).join(' · ');
+  const contactLine = [brand.phone, brand.email, brand.website].filter(Boolean).join(' - ');
   if (contactLine) {
-    page.drawText(contactLine.slice(0, 95), {
+    page.drawText(pdfSafeText(contactLine.slice(0, 95)), {
       x: margin,
       y: H - 88,
       size: 8,
@@ -743,7 +767,7 @@ function drawStandardPdfHeader(docCtx, page, docTitle = 'DOCUMENT', docRef = '')
     });
   }
 
-  page.drawText(String(docTitle || 'DOCUMENT').toUpperCase().slice(0, 26), {
+  page.drawText(pdfSafeText(String(docTitle || 'DOCUMENT').toUpperCase().slice(0, 26)), {
     x: W - margin - 155,
     y: H - 40,
     size: 13,
@@ -752,7 +776,7 @@ function drawStandardPdfHeader(docCtx, page, docTitle = 'DOCUMENT', docRef = '')
   });
 
   if (docRef) {
-    page.drawText(String(docRef).slice(0, 32), {
+    page.drawText(pdfSafeText(String(docRef).slice(0, 32)), {
       x: W - margin - 155,
       y: H - 57,
       size: 9.5,
@@ -764,19 +788,18 @@ function drawStandardPdfHeader(docCtx, page, docTitle = 'DOCUMENT', docRef = '')
   return H - headerHeight - 24;
 }
 
-/**
- * Draws a consistent footer and "Page X of Y" across every page in a PDFDocument.
- */
 function applyStandardPdfFooters(docCtx, extraFooterNote = '') {
   const { pdf, width: W, height: H, margin, font } = docCtx;
   const pages = pdf.getPages();
   const total = pages.length;
   const lineCol = PDFLib.rgb(0.78, 0.82, 0.85);
   const mutCol = PDFLib.rgb(0.36, 0.42, 0.47);
-  const footerLeft = [brand.footer, extraFooterNote, brand.address?.replace(/\n/g, ', ')]
-    .filter(Boolean)
-    .join(' · ')
-    .slice(0, 105);
+  const footerLeft = pdfSafeText(
+    [brand.footer, extraFooterNote, brand.address?.replace(/\n/g, ', ')]
+      .filter(Boolean)
+      .join(' - ')
+      .slice(0, 105)
+  );
 
   pages.forEach((pg, idx) => {
     pg.drawLine({
@@ -832,7 +855,7 @@ function clearQueryParams() {
   window.history.replaceState({}, document.title, cleanUrl);
 }
 
-async function shareOrDownloadFile(blob, filename, title = 'Handyman Document') {
+async function shareOrDownloadFile(blob, filename, title = 'Task Document') {
   const file = new File([blob], filename, { type: blob.type || 'application/pdf' });
   if (navigator.canShare && navigator.canShare({ files: [file] })) {
     try {
