@@ -56,13 +56,79 @@ const DEFAULT_SUPABASE = {
   lastSync: ''
 };
 
+const TASK_BRITISH_STANDARDS = {
+  'Replacing silicone sealant': [
+    'BS 8000-16 (Workmanship on site - sealing)',
+    'BS EN ISO 11600 (Sealants for building construction)',
+    'BS EN 15651 (Sealants for non-structural use in joints in buildings and pedestrian walkways)'
+  ],
+  'Garden gate repair': [
+    'BS EN 12604 (Mechanical aspects of industrial, commercial and garage doors and gates)',
+    'BS 1722 (Fences - specification)',
+    'BS EN 1991 (Actions on structures - wind & imposed loads)'
+  ],
+  'Hanging shelves or hooks': [
+    'BS EN 1991 (Actions on structures - applied load safety)',
+    'BS 7671 (Requirements for electrical installations - safe zones away from cables)'
+  ],
+  'Flat-pack furniture assembly': [
+    'BS EN 14749 (Domestic and kitchen storage furniture - safety requirements and test methods)',
+    'BS EN 12520 (Furniture - strength, durability and safety)',
+    'BS EN 1991 (Tip-over & wall stability restraint)'
+  ],
+  'Painting and decorating': [
+    'BS 6150 (Painting of buildings - code of practice)',
+    'BS 8000-12 (Workmanship on building sites - code of practice for decorative work)',
+    'BS EN 13300 (Water-borne coating materials and coating systems for interior walls and ceilings)'
+  ],
+  'Minor plumbing repair': [
+    'BS EN 806 (Specifications for installations inside buildings conveying water for human consumption)',
+    'BS 6700 (Design, installation, testing and maintenance of services supplying water for domestic use)',
+    'Water Supply (Water Fittings) Regulations 1999'
+  ],
+  'Door adjustment or repair': [
+    'BS 8214 (Timber-based and related door assemblies - code of practice)',
+    'BS EN 1935 (Building hardware - single-axis hinges)',
+    'BS EN 1634 / BS 9999 (Fire resistance & door closing where applicable)'
+  ],
+  'Curtain pole or blind installation': [
+    'BS EN 13120 (Internal blinds - performance requirements including safety)',
+    'BS EN 16433 / BS EN 16434 (Protection from strangulation hazards on internal blinds)',
+    'BS 7671 (Safe zones away from concealed cables)'
+  ],
+  'Tile or grout repair': [
+    'BS 5385 (Wall and floor tiling)',
+    'BS 8000-11 (Workmanship on building sites - code of practice for wall and floor tiling)',
+    'BS EN 12004 / BS EN 13888 (Ceramic tile adhesives and grouts)'
+  ],
+  'Fence panel repair': [
+    'BS 1722 (Fences - specification)',
+    'BS EN 1991 (Actions on structures - wind load & post stability)'
+  ],
+  'Lock or handle replacement': [
+    'BS 3621 / BS 8621 / BS 10621 (Thief-resistant lock assemblies)',
+    'BS EN 1906 (Building hardware - lever handles and knob furniture)',
+    'BS 8214 (Door hardware fitting & mortising)'
+  ],
+  'Gutter or downpipe minor repair': [
+    'BS EN 12056 (Gravity drainage systems inside buildings)',
+    'BS EN 607 (Eaves gutters and fittings defined by plastics)',
+    'BS 8000-13 (Workmanship on building sites - code of practice for above ground drainage)'
+  ],
+  'Picture or mirror hanging': [
+    'BS EN 1036 / BS EN 12150 (Glass in building - mirrors and safety glass where applicable)',
+    'BS 7671 (Safe zones away from concealed cables)',
+    'BS EN 1991 (Wall fixing & load safety)'
+  ]
+};
+
 let db = null;
 let brand = { ...DEFAULT_BRAND };
 let supabaseConfig = { ...DEFAULT_SUPABASE };
 let syncInProgress = false;
 
 // ============================================================================
-// 2. DOM, FORMATTING, REFERENCE & FILE UTILITIES
+// 2. DOM, FORMATTING, REFERENCE, STANDARDS & FILE UTILITIES
 // ============================================================================
 const $ = (selector, root = document) => root.querySelector(selector);
 const $$ = (selector, root = document) => Array.from(root.querySelectorAll(selector));
@@ -92,25 +158,119 @@ const dateFmt = (d) =>
   d ? new Date(d + 'T12:00:00').toLocaleDateString('en-GB') : '';
 
 /**
- * Extracts the shared numeric/core reference code (e.g. "121" from "121", "quo121",
- * "con121", "qa121", "inv121", or "TSK-121") so all documents share one number.
+ * Returns the first letter of each word from the business name (e.g. "DKHS").
  */
-function extractRefCode(rawRef) {
+function getBusinessInitials(businessName) {
+  const words = String(businessName || brand.name || 'HM')
+    .replace(/[^a-zA-Z0-9\s]/g, ' ')
+    .trim()
+    .split(/\s+/)
+    .filter(Boolean);
+  const initials = words.map((w) => w[0]).join('').toUpperCase();
+  return initials || 'HM';
+}
+
+/**
+ * Allocates the next sequential 3-digit number starting from 001 (e.g. "001", "002").
+ */
+async function allocateTaskSequenceNumber() {
+  const key = 'taskSeq';
+  let counter = await get('counters', key);
+  if (!counter) counter = { id: key, value: 0 };
+  counter.value = Math.max(0, Number(counter.value) || 0) + 1;
+  await put('counters', counter);
+  return String(counter.value).padStart(3, '0');
+}
+
+/**
+ * Reduces the task sequence counter by 1 when a task is deleted.
+ */
+async function decrementTaskSequenceNumber() {
+  const key = 'taskSeq';
+  let counter = await get('counters', key);
+  if (!counter) counter = { id: key, value: 0 };
+  counter.value = Math.max(0, (Number(counter.value) || 0) - 1);
+  await put('counters', counter);
+  return String(counter.value).padStart(3, '0');
+}
+
+/**
+ * Extracts the trailing/core 3-digit sequence code (e.g. "001" from "DKHS-quo-001",
+ * "DKHS-con-001", or "001") without accidentally grabbing a 4-digit year like 2026.
+ */
+function extractSeqDigits(rawRef) {
   const s = String(rawRef || '').trim();
-  const numMatch = s.match(/(\d+)/);
-  if (numMatch) return numMatch[1];
-  const cleaned = s.replace(/^(quo|con|qa|inv|tsk|job)[-_\s]*/i, '').trim();
-  return cleaned || String(Math.floor(100 + Math.random() * 900));
+  const tailDigits = s.match(/(\d{1,4})$/);
+  if (tailDigits) return String(parseInt(tailDigits[1], 10) || 1).padStart(3, '0');
+  const anyDigits = s.match(/(?:^|[-_])(\d{1,3})(?:$|[-_])/);
+  if (anyDigits) return String(parseInt(anyDigits[1], 10) || 1).padStart(3, '0');
+  return '001';
 }
 
-function formatDocRef(prefix, rawRef) {
-  const code = extractRefCode(rawRef);
-  return `${String(prefix || '').toLowerCase()}${code}`;
+/**
+ * Formats a reference in the form: <INITIALS>-<prefix>-<digits>
+ * Examples: DKHS-tsk-001, DKHS-quo-001, DKHS-con-001, DKHS-qa-001, DKHS-inv-001.
+ */
+function formatDocRef(prefix, rawRef, businessName) {
+  const initials = getBusinessInitials(businessName || brand.name);
+  const cleanPrefix = String(prefix || 'tsk').toLowerCase().replace(/[^a-z]/g, '');
+  const digits = extractSeqDigits(rawRef);
+  return `${initials}-${cleanPrefix}-${digits}`;
 }
 
-function formatTaskRef(rawRef) {
-  const code = extractRefCode(rawRef);
-  return `TSK-${code}`;
+/**
+ * Returns relevant British Standards for a task without cross-contaminating trades.
+ */
+function resolveBritishStandards(taskObj) {
+  const category = String(taskObj?.task || '').trim();
+  if (TASK_BRITISH_STANDARDS[category]) {
+    return [...TASK_BRITISH_STANDARDS[category]];
+  }
+  const text = `${category} ${taskObj?.description || ''}`.toLowerCase();
+  if (text.includes('silicon') || text.includes('sealant') || text.includes('mastic')) {
+    return [...TASK_BRITISH_STANDARDS['Replacing silicone sealant']];
+  }
+  if (text.includes('gate')) {
+    return [...TASK_BRITISH_STANDARDS['Garden gate repair']];
+  }
+  if (text.includes('fence') || text.includes('panel')) {
+    return [...TASK_BRITISH_STANDARDS['Fence panel repair']];
+  }
+  if (text.includes('paint') || text.includes('decorat')) {
+    return [...TASK_BRITISH_STANDARDS['Painting and decorating']];
+  }
+  if (text.includes('plumb') || text.includes('tap') || text.includes('leak') || text.includes('pipe')) {
+    return [...TASK_BRITISH_STANDARDS['Minor plumbing repair']];
+  }
+  if (text.includes('tile') || text.includes('grout')) {
+    return [...TASK_BRITISH_STANDARDS['Tile or grout repair']];
+  }
+  if (text.includes('lock') || text.includes('handle') || text.includes('latch')) {
+    return [...TASK_BRITISH_STANDARDS['Lock or handle replacement']];
+  }
+  if (text.includes('door')) {
+    return [...TASK_BRITISH_STANDARDS['Door adjustment or repair']];
+  }
+  if (text.includes('blind') || text.includes('curtain')) {
+    return [...TASK_BRITISH_STANDARDS['Curtain pole or blind installation']];
+  }
+  if (text.includes('gutter') || text.includes('downpipe')) {
+    return [...TASK_BRITISH_STANDARDS['Gutter or downpipe minor repair']];
+  }
+  if (text.includes('mirror') || text.includes('picture')) {
+    return [...TASK_BRITISH_STANDARDS['Picture or mirror hanging']];
+  }
+  if (text.includes('shelf') || text.includes('shelves') || text.includes('hook')) {
+    return [...TASK_BRITISH_STANDARDS['Hanging shelves or hooks']];
+  }
+  if (text.includes('furniture') || text.includes('flat-pack') || text.includes('flat pack')) {
+    return [...TASK_BRITISH_STANDARDS['Flat-pack furniture assembly']];
+  }
+  return [
+    'BS 8000 (Workmanship on building sites - general compliance)',
+    'BS EN 1991 (Applied load & fixing safety)',
+    'BS 7671 (Safe zones away from concealed services)'
+  ];
 }
 
 /**
@@ -405,7 +565,6 @@ async function syncWithSupabase(options = { quiet: false }) {
       const localItems = await all(storeName);
       const localMap = new Map(localItems.map((item) => [String(item.id), item]));
 
-      // 1. Pull remote rows
       const getRes = await fetch(supabaseRestUrl(storeName, '?select=id,data,updated_at'), {
         headers: supabaseHeaders()
       });
@@ -433,7 +592,6 @@ async function syncWithSupabase(options = { quiet: false }) {
         }
       }
 
-      // 2. Push local-only or newer local records
       for (const localRec of localItems) {
         if (!localRec || !localRec.id) continue;
         const localTs = Number(localRec.updatedAt || localRec.created || Date.now());
@@ -567,10 +725,10 @@ function openWorkspaceMenu(activeSection = '') {
   const items = [
     { id: 'home', step: '1', label: 'Home Overview', sub: 'Dashboard & recent tasks', href: APP_CONFIG.pages.home },
     { id: 'customers', step: '2', label: 'Customers', sub: 'Register & manage clients', href: APP_CONFIG.pages.customers },
-    { id: 'tasks', step: '3', label: 'Tasks & Quotations', sub: 'Assign tasks & build quotes (quo...)', href: APP_CONFIG.pages.tasks },
-    { id: 'legal', step: '4', label: 'Legal Contracts', sub: 'Contracts from task & quote (con...)', href: APP_CONFIG.pages.legal },
-    { id: 'qa', step: '5', label: 'QA Assessments', sub: 'Quality checks & sign-off (qa...)', href: APP_CONFIG.pages.qa },
-    { id: 'invoices', step: '6', label: 'Invoices', sub: 'Billing & payment tracking (inv...)', href: APP_CONFIG.pages.invoices },
+    { id: 'tasks', step: '3', label: 'Tasks & Quotations', sub: 'Assign tasks & build quotes (quo)', href: APP_CONFIG.pages.tasks },
+    { id: 'legal', step: '4', label: 'Legal Contracts', sub: 'Contracts from task & quote (con)', href: APP_CONFIG.pages.legal },
+    { id: 'qa', step: '5', label: 'QA Assessments', sub: 'Quality checks & sign-off (qa)', href: APP_CONFIG.pages.qa },
+    { id: 'invoices', step: '6', label: 'Invoices', sub: 'Billing & payment tracking (inv)', href: APP_CONFIG.pages.invoices },
     { id: 'peripherals', step: '7', label: 'Peripherals', sub: 'Branding, Supabase & backup', href: APP_CONFIG.pages.peripherals }
   ];
 
