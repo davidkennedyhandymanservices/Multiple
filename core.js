@@ -975,6 +975,89 @@ function drawStandardPdfHeader(docCtx, page, docTitle = 'DOCUMENT', docRef = '')
   return H - headerHeight - 24;
 }
 
+function getValidInsurancePolicies(profileOrPolicies) {
+  const source = arguments.length === 0 ? brand : profileOrPolicies;
+  const policies = Array.isArray(source)
+    ? source
+    : Array.isArray(source?.insurancePolicies)
+      ? source.insurancePolicies
+      : [];
+
+  return policies.filter((policy) => {
+    if (!policy || typeof policy !== 'object' || policy.active === false || policy.isActive === false) {
+      return false;
+    }
+
+    const reference = String(policy.reference ?? '').trim() || String(policy.policyNumber ?? '').trim();
+    if (!reference) return false;
+
+    const expiry = String(policy.expiry || policy.expiryDate || '').trim();
+    if (!expiry) return true;
+
+    let expiryDate;
+    if (/^\d{4}-\d{2}-\d{2}$/.test(expiry)) {
+      const [year, month, day] = expiry.split('-').map(Number);
+      expiryDate = new Date(year, month - 1, day, 23, 59, 59, 999);
+      if (
+        expiryDate.getFullYear() !== year ||
+        expiryDate.getMonth() !== month - 1 ||
+        expiryDate.getDate() !== day
+      ) {
+        return false;
+      }
+    } else {
+      expiryDate = new Date(expiry);
+    }
+    return !Number.isNaN(expiryDate.getTime()) && expiryDate >= new Date();
+  });
+}
+
+function drawPublicLiabilityInsurance(docCtx, page, y) {
+  const policies = getValidInsurancePolicies();
+  if (!policies.length) return y;
+
+  const { width: W, margin, font, bold } = docCtx;
+  const [r, g, b] = hexToRgbTuple(brand.color || '#0f5c5c');
+  const accentCol = PDFLib.rgb(r, g, b);
+  const inkCol = PDFLib.rgb(0.12, 0.18, 0.23);
+
+  page.drawText('PUBLIC LIABILITY INSURANCE', {
+    x: margin,
+    y,
+    size: 9,
+    font: bold,
+    color: accentCol
+  });
+  y -= 15;
+
+  policies.forEach((policy) => {
+    const provider = String(policy.provider || '').trim();
+    const reference = String(policy.reference ?? '').trim() || String(policy.policyNumber ?? '').trim();
+    const expiry = String(policy.expiry || policy.expiryDate || '').trim();
+    const coverageLimit = String(policy.coverageLimit || '').trim();
+    const line = [
+      String(policy.name || 'Insurance policy').trim(),
+      provider ? `Provider: ${provider}` : '',
+      `Reference: ${reference}`,
+      expiry ? `Expiry: ${dateFmt(expiry)}` : '',
+      coverageLimit ? `Cover: ${coverageLimit}` : ''
+    ].filter(Boolean).join(' - ');
+
+    page.drawText(pdfSafeText(line), {
+      x: margin,
+      y,
+      size: 8,
+      font,
+      color: inkCol,
+      maxWidth: W - margin * 2
+    });
+    y -= 12;
+  });
+
+  y -= 5;
+  return y;
+}
+
 /**
  * Draws a consistent footer and "Page X of Y" across every page in a PDFDocument.
  */
@@ -1050,63 +1133,6 @@ function applyStandardPdfFooters(docCtx, extraFooterNote = '') {
       });
     }
 
-    function getValidInsurancePolicies() {
-      const policies = Array.isArray(brand.insurancePolicies) ? brand.insurancePolicies : [];
-      return policies.filter((policy) => {
-        if (!policy || typeof policy !== 'object') return false;
-        const name = String(policy.name || '').trim();
-        const reference = String(policy.reference || '').trim();
-        const expiry = String(policy.expiry || '').trim();
-        const limit = String(policy.coverageLimit || '').trim();
-        if (!name || !reference || !expiry || !limit) return false;
-        const expiryDate = new Date(`${expiry}T23:59:59`);
-        return !Number.isNaN(expiryDate.getTime()) && expiryDate >= new Date();
-      });
-    }
-
-    function drawPublicLiabilityInsurance(docCtx, page, y) {
-      const policies = getValidInsurancePolicies();
-      if (!policies.length) return y;
-
-      const { width: W, margin, font, bold } = docCtx;
-      const [r, g, b] = hexToRgbTuple(brand.color || '#0f5c5c');
-      const accentCol = PDFLib.rgb(r, g, b);
-      const inkCol = PDFLib.rgb(0.12, 0.18, 0.23);
-      const mutCol = PDFLib.rgb(0.36, 0.42, 0.47);
-
-      page.drawText('PUBLIC LIABILITY INSURANCE', {
-        x: margin,
-        y,
-        size: 9,
-        font: bold,
-        color: accentCol
-      });
-      y -= 15;
-
-      policies.forEach((policy) => {
-        const provider = String(policy.provider || '').trim();
-        const line = [
-          String(policy.name).trim(),
-          provider ? `Provider: ${provider}` : '',
-          `Reference: ${policy.reference}`,
-          `Expiry: ${dateFmt(policy.expiry)}`,
-          `Cover: ${policy.coverageLimit}`
-        ].filter(Boolean).join(' - ');
-
-        page.drawText(pdfSafeText(line), {
-          x: margin,
-          y,
-          size: 8,
-          font,
-          color: inkCol,
-          maxWidth: W - margin * 2
-        });
-        y -= 12;
-      });
-
-      y -= 5;
-      return y;
-    }
     pg.drawText(`Page ${idx + 1} of ${total}`, {
       x: W - margin - 58,
       y: 19,
