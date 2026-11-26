@@ -170,7 +170,7 @@ async function renderPeripheralsPage() {
       <h3>Centralised Branding Panel</h3>
       <form id="brandForm" onsubmit="event.preventDefault();saveBrandSettings()">
         <label>Business Name</label>
-        <input name="name" value="${esc(brand.name || '')}" required placeholder="e.g. Bournemouth & Poole Property Care">
+        <input name="name" value="${esc(brand.name || '')}" placeholder="e.g. Bournemouth & Poole Property Care">
 
         <label>Slogan / Tagline</label>
         <input name="slogan" value="${esc(brand.slogan || '')}" placeholder="e.g. Reliable Property Maintenance & Repairs">

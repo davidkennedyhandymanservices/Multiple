@@ -538,7 +538,7 @@ async function saveQaAssessment() {
 
   try {
     const pdfBlob = await makeQaPdf(record);
-    const filename = `${qaRef}.pdf`;
+    const filename = pdfFilenameFromRef(qaRef, 'QA_Report');
     record.filename = filename;
     record.pdfData = await fileData(new File([pdfBlob], filename, { type: 'application/pdf' }));
 
@@ -585,7 +585,7 @@ async function makeQaPdf(r) {
   let y = drawStandardPdfHeader(ctx, page, 'QUALITY ASSURANCE', qaRef);
 
   function ensureSpace(needed = 24) {
-    if (y - needed < 68) {
+    if (y - needed < ctx.footerHeight) {
       page = pdf.addPage([W, H]);
       y = drawStandardPdfHeader(ctx, page, 'QUALITY ASSURANCE', qaRef);
     }
@@ -751,7 +751,11 @@ async function openQaPdfById(reportId) {
     const r = await get('qaReports', reportId);
     if (!r) throw new Error('QA report not found');
     const blob = await resolveQaBlob(r);
-    presentPdf(blob, r.filename || `${r.qaRef || 'QA_Report'}.pdf`, win);
+    presentPdf(
+      blob,
+      pdfFilenameFromRef(r.qaRef || formatDocRef('qa', r.jobRef), 'QA_Report'),
+      win
+    );
   } catch (e) {
     if (win) win.close();
     toast('Could not open QA PDF: ' + e.message);
@@ -765,7 +769,7 @@ async function shareQaPdfById(reportId) {
     const blob = await resolveQaBlob(r);
     await shareOrDownloadFile(
       blob,
-      r.filename || `${r.qaRef || 'QA_Report'}.pdf`,
+      pdfFilenameFromRef(r.qaRef || formatDocRef('qa', r.jobRef), 'QA_Report'),
       `QA Report ${r.qaRef || ''}`
     );
   } catch (e) {

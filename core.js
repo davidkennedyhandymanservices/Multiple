@@ -332,6 +332,11 @@ function downloadBlob(blob, filename) {
   setTimeout(() => URL.revokeObjectURL(url), 10000);
 }
 
+function pdfFilenameFromRef(documentRef, fallback = 'Document') {
+  const safeRef = String(documentRef || '').trim().replace(/[^a-zA-Z0-9_-]/g, '');
+  return `${safeRef || fallback}.pdf`;
+}
+
 function presentPdf(blob, filename, win) {
   const url = URL.createObjectURL(blob);
   if (win && !win.closed) {
@@ -887,7 +892,7 @@ async function createBrandedPdfDocument(documentRef = '') {
     height: 842,
     margin: 46,
     headerHeight: 100,
-    footerHeight: 62
+    footerHeight: 104
   };
 }
 
@@ -1080,52 +1085,84 @@ function applyStandardPdfFooters(docCtx, extraFooterNote = '') {
       .join(' - ')
       .slice(0, 105)
   );
+  const watermarkAngle = 30;
+  const watermarkRadians = (watermarkAngle * Math.PI) / 180;
+  const watermarkSize = 17;
+  const watermarkInset = 12;
+  const watermarkHeightAtMax = font.heightAtSize(watermarkSize);
+  const maxWatermarkWidth =
+    (W - (margin + watermarkInset) * 2 - watermarkHeightAtMax * Math.sin(watermarkRadians)) /
+    Math.cos(watermarkRadians);
+  const watermarkNaturalWidth = font.widthOfTextAtSize(pdfSafeText(watermarkText), watermarkSize);
+  const watermarkScale = Math.min(1, maxWatermarkWidth / watermarkNaturalWidth);
+  const watermarkFontSize = watermarkSize * watermarkScale;
+  const watermarkWidth = font.widthOfTextAtSize(pdfSafeText(watermarkText), watermarkFontSize);
+  const watermarkHeight = font.heightAtSize(watermarkFontSize);
+  const watermarkBoundsWidth =
+    watermarkWidth * Math.cos(watermarkRadians) + watermarkHeight * Math.sin(watermarkRadians);
+  const watermarkBoundsHeight =
+    watermarkWidth * Math.sin(watermarkRadians) + watermarkHeight * Math.cos(watermarkRadians);
+  const watermarkX =
+    (W - watermarkBoundsWidth) / 2 + watermarkHeight * Math.sin(watermarkRadians);
+  const watermarkY =
+    (H - watermarkBoundsHeight) / 2 + watermarkWidth * Math.sin(watermarkRadians);
 
   pages.forEach((pg, idx) => {
     pg.drawText(pdfSafeText(watermarkText), {
-      x: 72,
-      y: H * 0.50,
-      size: 27,
+      x: watermarkX,
+      y: watermarkY,
+      size: watermarkFontSize,
       font,
       color: accentCol,
       opacity: 0.18,
-      rotate: PDFLib.degrees(-38)
+      rotate: PDFLib.degrees(-watermarkAngle)
     });
 
     pg.drawLine({
-      start: { x: margin, y: 56 },
-      end: { x: W - margin, y: 56 },
+      start: { x: margin, y: 78 },
+      end: { x: W - margin, y: 78 },
       thickness: 0.75,
       color: lineCol
     });
 
-    pg.drawText('*', {
-      x: margin,
-      y: 43,
-      size: 10,
-      font,
-      color: accentCol
-    });
-    pg.drawText(pdfSafeText(guaranteeText), {
-      x: margin + 10,
-      y: 43,
-      size: 5.7,
-      font,
-      color: mutCol,
-      maxWidth: W - margin * 2 - 10
-    });
-    pg.drawText(pdfSafeText(guaranteeSecondLine), {
-      x: margin + 10,
-      y: 31,
-      size: 5.7,
-      font,
-      color: mutCol,
-      maxWidth: W - margin * 2 - 10
-    });
+    const guaranteeSize = 5.8;
+    const guaranteeLineHeight = 7.5;
+    const guaranteeWidth = W - margin * 2;
+    let guaranteeY = 69;
+    for (const text of [guaranteeText, guaranteeSecondLine]) {
+      let line = '';
+      for (const word of pdfSafeText(text).split(/\s+/)) {
+        const candidate = line ? `${line} ${word}` : word;
+        if (font.widthOfTextAtSize(candidate, guaranteeSize) > guaranteeWidth && line) {
+          pg.drawText(line, {
+            x: margin,
+            y: guaranteeY,
+            size: guaranteeSize,
+            font,
+            color: mutCol
+          });
+          guaranteeY -= guaranteeLineHeight;
+          line = word;
+        } else {
+          line = candidate;
+        }
+      }
+      if (line) {
+        pg.drawText(line, {
+          x: margin,
+          y: guaranteeY,
+          size: guaranteeSize,
+          font,
+          color: mutCol
+        });
+        guaranteeY -= guaranteeLineHeight;
+      }
+    }
+
     if (footerLeft) {
       pg.drawText(footerLeft, {
         x: margin,
-        y: 19,
+        y: 22,
         size: 6.5,
         font,
         color: mutCol,
@@ -1135,7 +1172,7 @@ function applyStandardPdfFooters(docCtx, extraFooterNote = '') {
 
     pg.drawText(`Page ${idx + 1} of ${total}`, {
       x: W - margin - 58,
-      y: 19,
+      y: 22,
       size: 7,
       font,
       color: mutCol

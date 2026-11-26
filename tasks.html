@@ -327,7 +327,7 @@ async function saveTask(existingTaskId = '') {
   };
 
   const pdfBlob = await makeQuotationPdf(quoteRecord, taskRecord);
-  const filename = `${quoteRef}.pdf`;
+  const filename = pdfFilenameFromRef(quoteRef, 'Quotation');
   quoteRecord.filename = filename;
   quoteRecord.pdfData = await fileData(new File([pdfBlob], filename, { type: 'application/pdf' }));
 
@@ -430,7 +430,7 @@ async function saveQuoteFromModal(taskId, existingQuoteId = '') {
   };
 
   const pdfBlob = await makeQuotationPdf(quoteRecord, task);
-  const filename = `${quoteRef}.pdf`;
+  const filename = pdfFilenameFromRef(quoteRef, 'Quotation');
   quoteRecord.filename = filename;
   quoteRecord.pdfData = await fileData(new File([pdfBlob], filename, { type: 'application/pdf' }));
 
@@ -471,7 +471,7 @@ async function makeQuotationPdf(q, taskObj = null) {
   let y = drawStandardPdfHeader(ctx, page, 'QUOTATION', refBadge);
 
   function ensureSpace(needed = 24) {
-    if (y - needed < 68) {
+    if (y - needed < ctx.footerHeight) {
       page = pdf.addPage([W, H]);
       y = drawStandardPdfHeader(ctx, page, 'QUOTATION', refBadge);
     }
@@ -608,7 +608,11 @@ async function viewQuotePdfById(quoteId) {
     const q = await get('quotes', quoteId);
     if (!q) throw new Error('Quotation not found');
     const blob = await resolveQuoteBlob(q);
-    presentPdf(blob, q.filename || `${q.documentNumber || 'Quotation'}.pdf`, win);
+    presentPdf(
+      blob,
+      pdfFilenameFromRef(q.documentNumber || formatDocRef('quo', q.jobRef), 'Quotation'),
+      win
+    );
   } catch (e) {
     if (win) win.close();
     toast('Could not open quotation PDF: ' + e.message);
@@ -622,7 +626,7 @@ async function shareQuotePdfById(quoteId) {
     const blob = await resolveQuoteBlob(q);
     await shareOrDownloadFile(
       blob,
-      q.filename || `${q.documentNumber || 'Quotation'}.pdf`,
+      pdfFilenameFromRef(q.documentNumber || formatDocRef('quo', q.jobRef), 'Quotation'),
       `Quotation ${q.documentNumber || ''}`
     );
   } catch (e) {

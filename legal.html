@@ -573,7 +573,7 @@ async function saveContract(existingDocId = '') {
 
   try {
     const pdfBlob = await makeContractPdf(contractData, contractorSigUrl, clientSigUrl);
-    const filename = `${contractRef}.pdf`;
+    const filename = pdfFilenameFromRef(contractRef, 'Contract');
     const dataUrl = await fileData(new File([pdfBlob], filename, { type: 'application/pdf' }));
 
     let pdfStorage = old?.pdfStorage || null;
@@ -636,7 +636,7 @@ async function makeContractPdf(cData, contractorSigUrl, clientSigUrl) {
   }
 
   function ensureSpace(needed = 24) {
-    if (y - needed < 68) {
+    if (y - needed < ctx.footerHeight) {
       startNewPage();
     }
   }
@@ -830,7 +830,7 @@ async function openLegalDocPdf(docId) {
     const d = await get('docs', docId);
     if (!d) throw new Error('Contract not found');
     const blob = await resolveLegalDocBlob(d);
-    presentPdf(blob, d.filename || `${d.contractRef || 'Contract'}.pdf`, win);
+    presentPdf(blob, pdfFilenameFromRef(d.contractRef || d.contractData?.contractRef, 'Contract'), win);
   } catch (e) {
     if (win) win.close();
     toast('Could not open PDF: ' + e.message);
@@ -842,7 +842,11 @@ async function shareLegalDoc(docId) {
     const d = await get('docs', docId);
     if (!d) throw new Error('Contract not found');
     const blob = await resolveLegalDocBlob(d);
-    await shareOrDownloadFile(blob, d.filename || `${d.contractRef || 'Contract'}.pdf`, d.name || 'Contract');
+    await shareOrDownloadFile(
+      blob,
+      pdfFilenameFromRef(d.contractRef || d.contractData?.contractRef, 'Contract'),
+      d.name || 'Contract'
+    );
   } catch (e) {
     toast('Could not share PDF: ' + e.message);
   }
