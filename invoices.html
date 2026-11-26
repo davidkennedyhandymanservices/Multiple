@@ -364,9 +364,9 @@ async function markInvoicePaid(invoiceId) {
 }
 
 async function makeInvoicePdf(inv) {
-  const ctx = await createBrandedPdfDocument();
-  const { pdf, font, bold, width: W, height: H, margin } = ctx;
   const invRef = pdfSafeText(inv.documentNumber || formatDocRef('inv', inv.jobRef));
+  const ctx = await createBrandedPdfDocument(invRef);
+  const { pdf, font, bold, width: W, height: H, margin } = ctx;
   const quoRef = pdfSafeText(inv.quoteNumber || formatDocRef('quo', invRef));
   const tskRef = pdfSafeText(formatDocRef('tsk', invRef));
   const [ar, ag, ab] = hexToRgbTuple(brand.color || '#0f5c5c');
@@ -636,6 +636,10 @@ async function makeInvoicePdf(inv) {
     }
   }
 
+  if (getValidInsurancePolicies().length) {
+    ensureSpace(70);
+    y = drawPublicLiabilityInsurance(ctx, page, y);
+  }
   applyStandardPdfFooters(ctx, `Invoice ${invRef}`);
   return new Blob([await pdf.save()], { type: 'application/pdf' });
 }

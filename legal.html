@@ -618,9 +618,9 @@ async function saveContract(existingDocId = '') {
 }
 
 async function makeContractPdf(cData, contractorSigUrl, clientSigUrl) {
-  const ctx = await createBrandedPdfDocument();
-  const { pdf, font, bold, width: W, height: H, margin } = ctx;
   const refBadge = pdfSafeText(cData.contractRef || '');
+  const ctx = await createBrandedPdfDocument(refBadge);
+  const { pdf, font, bold, width: W, height: H, margin } = ctx;
   const [ar, ag, ab] = hexToRgbTuple(brand.color || '#0f5c5c');
   const accentCol = PDFLib.rgb(ar, ag, ab);
   const inkCol = PDFLib.rgb(0.08, 0.14, 0.18);
@@ -798,6 +798,10 @@ async function makeContractPdf(cData, contractorSigUrl, clientSigUrl) {
     }
   }
 
+  if (getValidInsurancePolicies().length) {
+    ensureSpace(70);
+    y = drawPublicLiabilityInsurance(ctx, page, y);
+  }
   applyStandardPdfFooters(ctx, `Contract ${cData.contractRef || ''}`);
   return new Blob([await pdf.save()], { type: 'application/pdf' });
 }

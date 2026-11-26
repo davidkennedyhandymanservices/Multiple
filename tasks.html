@@ -64,7 +64,10 @@ const TASK_TYPES = [
   'Tile or grout repair',
   'Fence panel repair',
   'Lock or handle replacement',
-  'Gutter or downpipe minor repair',
+  'Basic carpentry',
+  'General household repairs',
+  'Minor fixture replacements',
+  'Internal painting and decorating',
   'Picture or mirror hanging',
   'General / Bespoke Task'
 ];
@@ -455,7 +458,8 @@ async function saveQuoteFromModal(taskId, existingQuoteId = '') {
 }
 
 async function makeQuotationPdf(q, taskObj = null) {
-  const ctx = await createBrandedPdfDocument();
+  const refBadgeForMetadata = pdfSafeText(q.documentNumber || formatDocRef('quo', q.jobRef));
+  const ctx = await createBrandedPdfDocument(refBadgeForMetadata);
   const { pdf, font, bold, width: W, height: H, margin } = ctx;
   const refBadge = pdfSafeText(q.documentNumber || formatDocRef('quo', q.jobRef));
   const [ar, ag, ab] = hexToRgbTuple(brand.color || '#0f5c5c');
@@ -578,6 +582,10 @@ async function makeQuotationPdf(q, taskObj = null) {
     writeLine(q.notes, 9.5);
   }
 
+  if (getValidInsurancePolicies().length) {
+    ensureSpace(70);
+    y = drawPublicLiabilityInsurance(ctx, page, y);
+  }
   applyStandardPdfFooters(ctx, `Quotation ${refBadge}`);
   return new Blob([await pdf.save()], { type: 'application/pdf' });
 }

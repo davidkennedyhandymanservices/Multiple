@@ -156,7 +156,6 @@ async function renderQaPage() {
   $('#view').innerHTML = `
     <div class="c">
       <h2>Quality Assurance (QA) Assessments</h2>
-      <p class="m">Complete task-matched <strong>British Standards</strong> checks, attach itemised evidence photos, capture dual signatures, and export a <strong>QA Certificate PDF</strong> (e.g. <code>${esc(formatDocRef('qa', '001'))}</code>).</p>
       <button type="button" class="w" onclick="openQaAssessmentModal()">+ New QA Assessment</button>
     </div>
 
@@ -572,9 +571,9 @@ async function embedImageFromDataUrl(pdf, dataUrl) {
 }
 
 async function makeQaPdf(r) {
-  const ctx = await createBrandedPdfDocument();
-  const { pdf, font, bold, width: W, height: H, margin } = ctx;
   const qaRef = pdfSafeText(r.qaRef || formatDocRef('qa', r.jobRef));
+  const ctx = await createBrandedPdfDocument(qaRef);
+  const { pdf, font, bold, width: W, height: H, margin } = ctx;
   const quoRef = pdfSafeText(r.quoteNumber || formatDocRef('quo', qaRef));
   const tskRef = pdfSafeText(formatDocRef('tsk', qaRef));
   const [ar, ag, ab] = hexToRgbTuple(brand.color || '#0f5c5c');
@@ -727,6 +726,10 @@ async function makeQaPdf(r) {
     }
   }
 
+  if (getValidInsurancePolicies().length) {
+    ensureSpace(70);
+    y = drawPublicLiabilityInsurance(ctx, page, y);
+  }
   applyStandardPdfFooters(ctx, `Quality Inspection Certificate ${qaRef}`);
   return new Blob([await pdf.save()], { type: 'application/pdf' });
 }

@@ -37,7 +37,7 @@ const APP_CONFIG = {
 };
 
 const DEFAULT_BRAND = {
-  name: 'David Kennedy Handyman Services',
+  name: '',
   slogan: '',
   address: '',
   phone: '',
@@ -46,7 +46,8 @@ const DEFAULT_BRAND = {
   color: '#0f5c5c',
   footer: '',
   bankDetails: '',
-  logo: ''
+  logo: '',
+  insurancePolicies: []
 };
 
 const DEFAULT_SUPABASE = {
@@ -110,10 +111,20 @@ const TASK_BRITISH_STANDARDS = {
     'BS EN 1906 (Building hardware - lever handles and knob furniture)',
     'BS 8214 (Door hardware fitting & mortising)'
   ],
-  'Gutter or downpipe minor repair': [
-    'BS EN 12056 (Gravity drainage systems inside buildings)',
-    'BS EN 607 (Eaves gutters and fittings defined by plastics)',
-    'BS 8000-13 (Workmanship on building sites - code of practice for above ground drainage)'
+  'Basic carpentry': [
+    'BS 8000-5 (Workmanship on building sites - carpentry and joinery)',
+    'BS 1186 (Timber and wood-based products - definitions and specifications)',
+    'BS 8103-2 (Structural design of low-rise buildings - materials)'
+  ],
+  'General household repairs': [
+    'BS 8000 (Workmanship on building sites - general compliance)',
+    'BS 8214 (Timber-based door and associated assemblies)',
+    'BS 7671 (Safe zones away from concealed services)'
+  ],
+  'Minor fixture replacements': [
+    'BS 8000-1 (Workmanship on building sites - general)',
+    'BS 7671 (Requirements for electrical installations - electrical fixtures)',
+    'BS 8300 (Accessibility and usability of the built environment)'
   ],
   'Picture or mirror hanging': [
     'BS EN 1036 / BS EN 12150 (Glass in building - mirrors and safety glass where applicable)',
@@ -254,8 +265,14 @@ function resolveBritishStandards(taskObj) {
   if (text.includes('blind') || text.includes('curtain')) {
     return [...TASK_BRITISH_STANDARDS['Curtain pole or blind installation']];
   }
-  if (text.includes('gutter') || text.includes('downpipe')) {
-    return [...TASK_BRITISH_STANDARDS['Gutter or downpipe minor repair']];
+  if (text.includes('carpent') || text.includes('joinery') || text.includes('shelving')) {
+    return [...TASK_BRITISH_STANDARDS['Basic carpentry']];
+  }
+  if (text.includes('fixture') || text.includes('replacement')) {
+    return [...TASK_BRITISH_STANDARDS['Minor fixture replacements']];
+  }
+  if (text.includes('household') || text.includes('general repair')) {
+    return [...TASK_BRITISH_STANDARDS['General household repairs']];
   }
   if (text.includes('mirror') || text.includes('picture')) {
     return [...TASK_BRITISH_STANDARDS['Picture or mirror hanging']];
@@ -838,9 +855,14 @@ function hexToRgbTuple(hex) {
  * Creates a standard A4 PDFLib document with shared fonts and embedded logo
  * so quotations, contracts, QA reports, and invoices share a consistent look.
  */
-async function createBrandedPdfDocument() {
+async function createBrandedPdfDocument(documentRef = '') {
   await loadScript('https://cdnjs.cloudflare.com/ajax/libs/pdf-lib/1.17.1/pdf-lib.min.js');
   const pdf = await PDFLib.PDFDocument.create();
+  pdf.setTitle(pdfSafeText(String(documentRef || '').trim()));
+  pdf.setSubject(documentRef ? `Document reference: ${pdfSafeText(documentRef)}` : 'Handyman service document');
+  pdf.setAuthor(pdfSafeText(String(brand.name || 'Handyman Services')));
+  pdf.setCreator('Handyman Manager');
+  pdf.setProducer('Handyman Manager');
   const font = await pdf.embedFont(PDFLib.StandardFonts.Helvetica);
   const bold = await pdf.embedFont(PDFLib.StandardFonts.HelveticaBold);
   let logo = null;
@@ -903,7 +925,7 @@ function drawStandardPdfHeader(docCtx, page, docTitle = 'DOCUMENT', docRef = '')
     x += lw + 12;
   }
 
-  page.drawText(pdfSafeText(String(brand.name || DEFAULT_BRAND.name).slice(0, 52)), {
+  page.drawText(pdfSafeText(String(brand.name || 'Handyman Services').slice(0, 52)), {
     x,
     y: H - 40,
     size: 15,
@@ -962,6 +984,13 @@ function applyStandardPdfFooters(docCtx, extraFooterNote = '') {
   const total = pages.length;
   const lineCol = PDFLib.rgb(0.78, 0.82, 0.85);
   const mutCol = PDFLib.rgb(0.36, 0.42, 0.47);
+  const [r, g, b] = hexToRgbTuple(brand.color || '#0f5c5c');
+  const accentCol = PDFLib.rgb(r, g, b);
+  const watermarkText = `${brand.name || 'Handyman Services'} - Quality Workmanship Guaranteed`;
+  const guaranteeText =
+    '*Satisfaction Guarantee: We pride ourselves on high-quality workmanship. If you are not entirely satisfied with the completed task, please contact us within 14 days of invoice date to arrange an inspection and appropriate remedial action.';
+  const guaranteeSecondLine =
+    '*This guarantee covers our workmanship only and does not extend to pre-existing defects, structural issues, or materials supplied by the client.';
   const footerLeft = pdfSafeText(
     [brand.footer, extraFooterNote, brand.address?.replace(/\n/g, ', ')]
       .filter(Boolean)
@@ -970,6 +999,16 @@ function applyStandardPdfFooters(docCtx, extraFooterNote = '') {
   );
 
   pages.forEach((pg, idx) => {
+    pg.drawText(pdfSafeText(watermarkText), {
+      x: 72,
+      y: H * 0.50,
+      size: 27,
+      font,
+      color: accentCol,
+      opacity: 0.18,
+      rotate: PDFLib.degrees(-38)
+    });
+
     pg.drawLine({
       start: { x: margin, y: 56 },
       end: { x: W - margin, y: 56 },
@@ -977,20 +1016,101 @@ function applyStandardPdfFooters(docCtx, extraFooterNote = '') {
       color: lineCol
     });
 
+    pg.drawText('*', {
+      x: margin,
+      y: 43,
+      size: 10,
+      font,
+      color: accentCol
+    });
+    pg.drawText(pdfSafeText(guaranteeText), {
+      x: margin + 10,
+      y: 43,
+      size: 5.7,
+      font,
+      color: mutCol,
+      maxWidth: W - margin * 2 - 10
+    });
+    pg.drawText(pdfSafeText(guaranteeSecondLine), {
+      x: margin + 10,
+      y: 31,
+      size: 5.7,
+      font,
+      color: mutCol,
+      maxWidth: W - margin * 2 - 10
+    });
     if (footerLeft) {
       pg.drawText(footerLeft, {
         x: margin,
-        y: 41,
-        size: 8,
+        y: 19,
+        size: 6.5,
         font,
-        color: mutCol
+        color: mutCol,
+        maxWidth: W - margin * 2 - 70
       });
     }
 
+    function getValidInsurancePolicies() {
+      const policies = Array.isArray(brand.insurancePolicies) ? brand.insurancePolicies : [];
+      return policies.filter((policy) => {
+        if (!policy || typeof policy !== 'object') return false;
+        const name = String(policy.name || '').trim();
+        const reference = String(policy.reference || '').trim();
+        const expiry = String(policy.expiry || '').trim();
+        const limit = String(policy.coverageLimit || '').trim();
+        if (!name || !reference || !expiry || !limit) return false;
+        const expiryDate = new Date(`${expiry}T23:59:59`);
+        return !Number.isNaN(expiryDate.getTime()) && expiryDate >= new Date();
+      });
+    }
+
+    function drawPublicLiabilityInsurance(docCtx, page, y) {
+      const policies = getValidInsurancePolicies();
+      if (!policies.length) return y;
+
+      const { width: W, margin, font, bold } = docCtx;
+      const [r, g, b] = hexToRgbTuple(brand.color || '#0f5c5c');
+      const accentCol = PDFLib.rgb(r, g, b);
+      const inkCol = PDFLib.rgb(0.12, 0.18, 0.23);
+      const mutCol = PDFLib.rgb(0.36, 0.42, 0.47);
+
+      page.drawText('PUBLIC LIABILITY INSURANCE', {
+        x: margin,
+        y,
+        size: 9,
+        font: bold,
+        color: accentCol
+      });
+      y -= 15;
+
+      policies.forEach((policy) => {
+        const provider = String(policy.provider || '').trim();
+        const line = [
+          String(policy.name).trim(),
+          provider ? `Provider: ${provider}` : '',
+          `Reference: ${policy.reference}`,
+          `Expiry: ${dateFmt(policy.expiry)}`,
+          `Cover: ${policy.coverageLimit}`
+        ].filter(Boolean).join(' - ');
+
+        page.drawText(pdfSafeText(line), {
+          x: margin,
+          y,
+          size: 8,
+          font,
+          color: inkCol,
+          maxWidth: W - margin * 2
+        });
+        y -= 12;
+      });
+
+      y -= 5;
+      return y;
+    }
     pg.drawText(`Page ${idx + 1} of ${total}`, {
       x: W - margin - 58,
-      y: 26,
-      size: 8,
+      y: 19,
+      size: 7,
       font,
       color: mutCol
     });

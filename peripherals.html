@@ -94,6 +94,7 @@ create table if not exists public.settings (
   data jsonb not null default '{}'::jsonb,
   updated_at timestamptz not null default now()
 );
+comment on column public.settings.data is 'Settings JSON, including dynamic branding and insurancePolicies';
 create table if not exists public.counters (
   id text primary key,
   data jsonb not null default '{}'::jsonb,
@@ -144,11 +145,15 @@ on storage.objects for delete to anon, authenticated
 using (bucket_id = 'documents');`;
 
 let pendingLogoData = null;
+let pendingInsurancePolicies = [];
 
 async function renderPeripheralsPage() {
   await loadBrand();
   await loadSupabaseConfig();
   pendingLogoData = brand.logo || '';
+  pendingInsurancePolicies = Array.isArray(brand.insurancePolicies)
+    ? brand.insurancePolicies.map((policy) => ({ ...policy }))
+    : [];
 
   const counts = await Promise.all(
     APP_CONFIG.stores.map(async (s) => ({ store: s, count: (await all(s)).length }))
@@ -158,13 +163,11 @@ async function renderPeripheralsPage() {
   $('#view').innerHTML = `
     <div class="c">
       <h2>Peripherals &amp; Settings</h2>
-      <p class="m">Centralised business branding, Supabase cloud sync + PDF storage setup, and local backup/restore.</p>
     </div>
 
     <!-- Centralised Branding Panel -->
     <div class="c">
       <h3>Centralised Branding Panel</h3>
-      <p class="m">Used across headers, contracts, quotations, QA reports, and invoices.</p>
       <form id="brandForm" onsubmit="event.preventDefault();saveBrandSettings()">
         <label>Business Name</label>
         <input name="name" value="${esc(brand.name || '')}" required placeholder="e.g. Bournemouth & Poole Property Care">
@@ -196,6 +199,10 @@ async function renderPeripheralsPage() {
         <label>Business Address</label>
         <textarea name="address" placeholder="Street, town, postcode">${esc(brand.address || '')}</textarea>
 
+        <h3 style="margin-top:14px">Public Liability Insurance</h3>
+        <div id="insurancePolicies"></div>
+        <button type="button" class="secondary" onclick="addInsurancePolicy()">Add Policy</button>
+
         <label>Bank Transfer Details (for Invoices)</label>
         <textarea name="bankDetails" placeholder="Account name, sort code, account number">${esc(brand.bankDetails || '')}</textarea>
 
@@ -209,7 +216,6 @@ async function renderPeripheralsPage() {
     <!-- Supabase Project Setup -->
     <div class="c">
       <h3>Supabase Sync &amp; PDF Storage</h3>
-      <p class="m">Enter your Supabase <strong>Project URL</strong> and <strong>Anon Key</strong> after running the setup SQL once in Supabase.</p>
       <form id="supabaseForm" onsubmit="event.preventDefault();saveSupabaseSettings()">
         <label>Supabase Project URL</label>
         <input name="url" type="url" value="${esc(supabaseConfig.url || '')}" placeholder="https://xxxxxxxxxxxx.supabase.co">
@@ -237,7 +243,6 @@ async function renderPeripheralsPage() {
     <!-- One-Click SQL Setup Script -->
     <div class="c">
       <h3>Supabase SQL Setup Script (Tables, Bucket &amp; Policies)</h3>
-      <p class="m">Copy or download this SQL script, paste it into your Supabase project's <strong>SQL Editor</strong>, and run it once.</p>
       <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:8px">
         <button type="button" onclick="copySetupSql()">Copy SQL Script</button>
         <button type="button" class="secondary" onclick="downloadSetupSql()">Download .sql File</button>
@@ -254,6 +259,59 @@ async function renderPeripheralsPage() {
       <input type="file" accept="application/json,.json" onchange="restoreBackupJson(this)">
     </div>
   `;
+  renderInsurancePolicies();
+}
+
+function renderInsurancePolicies() {
+  const container = $('#insurancePolicies');
+  if (!container) return;
+  container.innerHTML = pendingInsurancePolicies.map((policy, index) => `
+    <div class="c" style="margin:8px 0;padding:10px">
+      <label>Policy Name</label>
+      <input name="insuranceName${index}" value="${esc(policy.name || '')}" placeholder="e.g. Tradesman Public Liability">
+      <label>Provider Name</label>
+      <input name="insuranceProvider${index}" value="${esc(policy.provider || '')}" placeholder="Optional">
+      <label>Policy Reference Number</label>
+      <input name="insuranceReference${index}" value="${esc(policy.reference || '')}">
+      <label>Expiry Date</label>
+      <input name="insuranceExpiry${index}" type="date" value="${esc(policy.expiry || '')}">
+      <label>Coverage Limit</label>
+      <input name="insuranceLimit${index}" value="${esc(policy.coverageLimit || '')}" placeholder="e.g. £1,000,000">
+      <button type="button" class="danger" onclick="removeInsurancePolicy(${index})">Remove Policy</button>
+    </div>
+  `).join('');
+}
+
+function addInsurancePolicy() {
+  pendingInsurancePolicies = collectInsurancePolicies();
+  pendingInsurancePolicies.push({
+    name: '',
+    provider: '',
+    reference: '',
+    expiry: '',
+    coverageLimit: ''
+  });
+  renderInsurancePolicies();
+}
+
+function removeInsurancePolicy(index) {
+  pendingInsurancePolicies = collectInsurancePolicies();
+  pendingInsurancePolicies.splice(index, 1);
+  renderInsurancePolicies();
+}
+
+function collectInsurancePolicies() {
+  const form = $('#brandForm');
+  if (!form) return [];
+  return pendingInsurancePolicies.map((policy, index) => ({
+    name: (form.querySelector(`[name="insuranceName${index}"]`)?.value || '').trim(),
+    provider: (form.querySelector(`[name="insuranceProvider${index}"]`)?.value || '').trim(),
+    reference: (form.querySelector(`[name="insuranceReference${index}"]`)?.value || '').trim(),
+    expiry: (form.querySelector(`[name="insuranceExpiry${index}"]`)?.value || '').trim(),
+    coverageLimit: (form.querySelector(`[name="insuranceLimit${index}"]`)?.value || '').trim()
+  })).filter((policy) =>
+    policy.name || policy.provider || policy.reference || policy.expiry || policy.coverageLimit
+  );
 }
 
 async function previewBrandLogo(input) {
@@ -298,6 +356,7 @@ async function saveBrandSettings() {
     address: (f.address || '').trim(),
     bankDetails: (f.bankDetails || '').trim(),
     footer: (f.footer || '').trim(),
+    insurancePolicies: collectInsurancePolicies(),
     updatedAt: Date.now()
   };
 
